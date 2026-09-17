@@ -14,6 +14,11 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8081
+# Patches de segurança do Debian: a tag "slim" é reconstruída com atraso e o Trivy bloqueia
+# CVEs com fix disponível (perl, pcre2, sqlite...). Upgrade + limpeza na mesma camada.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
 # Usuário sem privilégios: boa prática de segurança em containers (CIS Docker Benchmark 4.1)
 RUN addgroup --system app && adduser --system --ingroup app --no-create-home app
 WORKDIR /app

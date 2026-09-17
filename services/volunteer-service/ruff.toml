@@ -1,0 +1,7 @@
+line-length = 120
+target-version = "py312"
+[lint]
+select = ["E", "F", "W", "B", "S"]   # S = bandit (segurança) via ruff
+ignore = ["S104"]                     # bind 0.0.0.0 é intencional em container
+[lint.per-file-ignores]
+"test_*.py" = ["S101"]                # assert é normal em teste

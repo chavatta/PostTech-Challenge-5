@@ -28,7 +28,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone       = local.azs[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false # NAT e ELBs usam IPs próprios; nenhum nó fica aqui (Trivy AVD-AWS-0164)
   tags = {
     Name                                        = "${var.name}-public-${local.azs[count.index]}"
     "kubernetes.io/role/elb"                    = "1" # onde o EKS cria LoadBalancers públicos

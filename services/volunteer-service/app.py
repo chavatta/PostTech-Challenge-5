@@ -38,7 +38,7 @@ def register_volunteer():
     data = request.get_json()
     if not data or not all(k in data for k in ('name', 'email', 'ngo_id')):
         return jsonify({"error": "Campos obrigatórios ausentes"}), 400
-    
+
     volunteer_id = str(uuid.uuid4())
     item = {
         'volunteer_id': volunteer_id,
@@ -47,7 +47,7 @@ def register_volunteer():
         'ngo_id': int(data['ngo_id']),
         'registered_at': str(int(time.time()))
     }
-    
+
     try:
         table.put_item(Item=item)
         return jsonify(item), 201

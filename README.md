@@ -27,7 +27,7 @@ gitops/              (Etapa 4) manifests Kubernetes consumidos pelo ArgoCD
 |---|-------|--------|
 | 1 | Containerização + ambiente local | ✅ |
 | 2 | Terraform (VPC, EKS, RDS, SQS, DynamoDB) com tags FinOps | ✅ código validado, apply pendente de credenciais |
-| 3 | CI/CD DevSecOps (GitHub Actions + Trivy + Sonar) | ⏳ |
+| 3 | CI/CD DevSecOps (GitHub Actions + Trivy + Semgrep + Sonar opcional) | ✅ |
 | 4 | GitOps com ArgoCD + rightsizing | ⏳ |
 | 5 | Observabilidade (Prometheus/Grafana/Loki) + New Relic APM | ⏳ |
 | 6 | SRE: SLI/SLO, Error Budget, dashboard | ⏳ |

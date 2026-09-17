@@ -1,0 +1,21 @@
+# Achados de IaC aceitos conscientemente no ambiente de lab (justificativa em docs/SEGURANCA.md)
+AVD-AWS-0104  # egress 0.0.0.0/0 no SG do RDS: necessário para updates; ingress é restrito ao SG do EKS
+AVD-AWS-0040  # EKS endpoint público: kubectl/ArgoCD rodam fora da VPC no lab
+AVD-AWS-0041  # EKS public access CIDR 0.0.0.0/0: IP do lab é dinâmico
+AVD-AWS-0038  # EKS control plane logs: apenas api/audit/authenticator habilitados (FinOps)
+AVD-AWS-0039  # EKS secrets encryption com KMS: não é possível criar chaves KMS no Learner Lab
+AVD-AWS-0178  # VPC flow logs desabilitados: custo de CloudWatch no lab
+AVD-AWS-0089  # S3 access logging: bucket de backup, sem necessidade de log de acesso no lab
+AVD-AWS-0132  # S3 SSE com KMS: sem KMS no Learner Lab, usa AES256
+AVD-AWS-0080  # RDS storage encryption: JÁ habilitado; falso positivo em algumas versões
+AVD-AWS-0176  # RDS IAM auth: serviços usam usuário/senha via SSM
+AVD-AWS-0177  # RDS deletion protection: desligado de propósito no lab (destroy limpo)
+AVD-AWS-0133  # RDS performance insights: indisponível no db.t3.micro
+AVD-AWS-0031  # ECR KMS: sem KMS no Learner Lab
+AVD-AWS-0033  # ECR image tag immutability: JÁ IMMUTABLE; falso positivo em algumas versões
+AVD-AWS-0097  # SQS policy: sem policy explícita; acesso via LabRole dos nós
+AVD-AWS-0096  # SQS KMS: usa SSE gerenciado pelo SQS
+AVD-AWS-0025  # DynamoDB KMS: sem KMS no Learner Lab
+AVD-AWS-0024  # DynamoDB PITR: JÁ habilitado; falso positivo em algumas versões
+AVD-AWS-0017  # CloudWatch log group KMS: sem KMS no Learner Lab
+AVD-AWS-0057  # IAM policy wildcard: não criamos IAM (LabRole é do Academy)

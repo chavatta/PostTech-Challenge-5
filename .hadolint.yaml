@@ -1,0 +1,4 @@
+ignored:
+  - DL3008  # apt pin: não usamos apt nas imagens
+  - DL3013  # pip pin: versões estão pinadas no requirements.txt
+  - DL3005  # apt-get upgrade: intencional, aplica patches de segurança do Debian (Trivy bloqueia CVEs com fix)

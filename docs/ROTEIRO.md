@@ -165,6 +165,91 @@ scripts/02-terraform-destroy.sh        # ~15 min
 
 ---
 
-## Etapa 3 — CI/CD DevSecOps
+## Etapa 3 — CI/CD DevSecOps (GitHub Actions)
+
+**Objetivo:** todo commit passa por testes, scans de segurança e build de imagem antes de existir
+uma imagem publicada. Nenhuma imagem chega ao cluster sem passar pelos gates.
+
+**Requisito do enunciado atendido:** "CI/CD e DevSecOps: pipelines automatizados contemplando testes,
+scans de segurança (SAST/SCA com Trivy/Sonar) e construção da imagem".
+
+### 3.1 O pipeline (`.github/workflows/ci.yml`)
+
+```
+ secrets (gitleaks) ──┐
+ iac (fmt/validate/trivy config) ──┼──> test [matriz 3 serviços] ──> build [matriz 3 serviços] ──> mirror-ecr (opcional)
+ sast (semgrep) ──────┘             lint + unit tests + Trivy SCA    hadolint + build + Trivy image + push GHCR
+```
+
+| Job | Ferramentas | Por quê |
+|---|---|---|
+| `secrets` | gitleaks | segredo commitado é a falha mais comum e mais cara |
+| `iac` | terraform fmt/validate + Trivy config | Terraform errado também é vulnerabilidade (SG aberto, bucket público) |
+| `sast` | semgrep + ruff (regras bandit) | análise estática do código Python/Go/Dockerfile |
+| `sonar` | SonarCloud (liga com `vars.SONAR_ENABLED=true`) | qualidade e cobertura; opcional porque exige conta |
+| `test` | pytest + Postgres service container / go test / **Trivy SCA** | testes reais + CVEs nas dependências |
+| `build` | hadolint + docker buildx + **Trivy image** + push GHCR | imagem final escaneada antes do push; tag = SHA do commit (imutável) |
+| `mirror-ecr` | opcional (`vars.ECR_MIRROR=true` + secrets AWS) | espelha para o ECR do Terraform quando há credencial válida |
+
+**Decisão de registry:** GHCR como registry principal. Motivo: a credencial do AWS Academy expira
+a cada ~4h e faria o push para o ECR falhar aleatoriamente. O ECR continua existindo (Terraform) e
+recebe espelho quando os secrets são atualizados. Imagens não são sensíveis: pacotes GHCR ficam públicos
+para o EKS puxar sem `imagePullSecret`.
+
+### 3.2 O que mudou no código
+
+| Arquivo | Mudança | Motivo |
+|---|---|---|
+| `services/*/test_app.py`, `main_test.go` | **testes criados** | o repositório original não tinha nenhum teste |
+| `services/*/ruff.toml`, `requirements-dev.txt` | lint com regras de segurança (bandit) | SAST no nível do lint |
+| `services/*/app.py` | whitespace / newline final | o código original reprovava no lint |
+| `services/*/Dockerfile` (Python) | `apt-get upgrade` no estágio final | a tag `python:3.12-slim` vinha com 3 CVEs CRITICAL no SO (perl) com fix disponível; o Trivy bloqueava |
+| `donation-service/go.mod` | Go 1.26, `x/crypto` 0.20→0.57, `x/text` 0.14→0.42 | 14 CVEs HIGH em dependências indiretas do pgx; as versões corrigidas exigem Go ≥ 1.26 |
+| `.trivyignore` | exceções de IaC documentadas | cada ID tem justificativa em `docs/SEGURANCA.md` |
+| `.hadolint.yaml` | regras de pin ignoradas | versões já pinadas nos requirements |
+
+### 3.3 Rodar os gates localmente (shift-left)
+
+```bash
+scripts/03-ci-check.sh
+```
+
+| | |
+|---|---|
+| O que faz | Executa em containers exatamente os mesmos gates do pipeline: go test, ruff+pytest, Trivy fs (SCA+IaC) e Trivy image. |
+| Por quê | Desenvolvedor descobre o problema antes do push. Pipeline vermelho custa minutos; scan local custa segundos. |
+| Falar no vídeo | "Shift-left: o mesmo scanner que bloqueia o merge roda na máquina do dev." |
+
+### 3.4 Ver o pipeline rodando
+
+```bash
+git push                      # dispara o workflow
+scripts/03-ci-check.sh watch  # acompanha o run no terminal
+```
+
+Ou abrir a aba **Actions** do repositório. Para o vídeo, mostrar:
+
+1. A matriz dos 3 serviços rodando em paralelo.
+2. O relatório do Trivy (tabela de CVEs) em um job de `test` e um de `build`.
+3. O push para o GHCR com a tag do SHA. *"Tag imutável: o que foi testado é exatamente o que vai para o cluster."*
+4. Um PR de teste com uma vulnerabilidade proposital (ex.: `Flask==2.2.2` de volta) sendo **bloqueado** pelo Trivy.
+   Esse é o melhor take de DevSecOps.
+
+### 3.5 Habilitar o SonarCloud (opcional)
+
+1. Criar projeto em sonarcloud.io apontando para o repositório.
+2. `gh secret set SONAR_TOKEN` e `gh variable set SONAR_ENABLED --body true`.
+3. Criar `sonar-project.properties` com a `organization` e `projectKey` do Sonar.
+
+### Evidências para o relatório
+
+- Print do workflow verde com os jobs.
+- Print do Trivy com CVEs encontradas/bloqueadas.
+- Print do pacote no GHCR com as tags.
+- Print (opcional) do PR bloqueado.
+
+---
+
+## Etapa 4 — GitOps com ArgoCD
 
 _(a preencher)_

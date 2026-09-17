@@ -1,0 +1,240 @@
+# ------------------------------------------------------------------------------
+# CI/CD DevSecOps — SolidaryTech
+#
+# Fluxo (Pull Request e push na main):
+#   secrets (gitleaks) ─┐
+#   iac (fmt/validate/trivy config) ─┼─> test (lint + unit tests por serviço)
+#   sast (semgrep) ─────┘                └─> build (docker build + Trivy image scan)
+#                                              └─> push GHCR (só na main)  ─> update-gitops (Etapa 4)
+#
+# Registry: GHCR (GitHub Container Registry). Motivo: credenciais do AWS Academy expiram a cada ~4h,
+# o que tornaria um push para o ECR no CI frágil. O ECR criado pelo Terraform recebe um espelho
+# opcional quando os secrets AWS_* existem (job mirror-ecr).
+# ------------------------------------------------------------------------------
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**.md"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/posttech-challenge-5
+
+jobs:
+  # ---------------------------------------------------------------- Segurança: segredos vazados
+  secrets:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------- Segurança: IaC
+  iac:
+    name: terraform lint + IaC scan
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: terraform } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.9.8" }
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+      - name: terraform validate
+        run: terraform init -backend=false -input=false && terraform validate
+      - name: Trivy IaC misconfiguration scan
+        uses: aquasecurity/trivy-action@0.28.0
+        env:
+          TRIVY_SKIP_CHECK_UPDATE: "true" # usa os checks embutidos (evita incompatibilidade de bundle)
+        with:
+          scan-type: config
+          scan-ref: terraform
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          # ids conhecidos e aceitos no lab (documentados em docs/SEGURANCA.md)
+          trivyignores: .trivyignore
+
+  # ---------------------------------------------------------------- Segurança: SAST
+  sast:
+    name: SAST (semgrep)
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: semgrep (python, go, docker, secrets rulesets)
+        run: semgrep ci --config p/python --config p/golang --config p/dockerfile --config p/secrets
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }} # opcional; sem token roda offline
+
+  # ---------------------------------------------------------------- SonarCloud (opcional)
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    if: ${{ vars.SONAR_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ---------------------------------------------------------------- Testes + SCA por serviço
+  test:
+    name: test ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [secrets, iac, sast]
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ngo-service, donation-service, volunteer-service]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: solidary, POSTGRES_PASSWORD: solidary, POSTGRES_DB: ngo_db }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U solidary" --health-interval 5s --health-timeout 3s --health-retries 10
+    defaults: { run: { working-directory: services/${{ matrix.service }} } }
+    env:
+      DATABASE_URL: postgres://solidary:solidary@localhost:5432/ngo_db
+      AWS_DYNAMODB_TABLE: SolidaryTechVolunteers
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Schema de teste (ngo-service)
+        if: matrix.service == 'ngo-service'
+        run: PGPASSWORD=solidary psql -h localhost -U solidary -d ngo_db -f db/init.sql
+
+      - name: Setup Python
+        if: matrix.service != 'donation-service'
+        uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: services/${{ matrix.service }}/requirements-dev.txt }
+      - name: Lint + testes (Python)
+        if: matrix.service != 'donation-service'
+        run: |
+          pip install -q -r requirements-dev.txt
+          ruff check .
+          pytest -q
+
+      - name: Setup Go
+        if: matrix.service == 'donation-service'
+        uses: actions/setup-go@v5
+        with: { go-version: "1.26", cache-dependency-path: services/donation-service/go.sum }
+      - name: Vet + testes (Go)
+        if: matrix.service == 'donation-service'
+        run: |
+          go vet ./...
+          go test -v -cover ./...
+
+      - name: Trivy SCA (dependências)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: services/${{ matrix.service }}
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  # ---------------------------------------------------------------- Build + scan de imagem + push
+  build:
+    name: build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [test]
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ngo-service, donation-service, volunteer-service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: hadolint (lint do Dockerfile)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: services/${{ matrix.service }}/Dockerfile
+          failure-threshold: warning
+
+      - name: Build (amd64, sem push)
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+      - name: Trivy image scan (bloqueia CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Login GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push (sha + latest)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # ---------------------------------------------------------------- Espelho opcional para o ECR
+  mirror-ecr:
+    name: mirror to ECR (opcional)
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name != 'pull_request' && vars.ECR_MIRROR == 'true'
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Copia as 3 imagens GHCR -> ECR
+        run: |
+          for s in ngo-service donation-service volunteer-service; do
+            docker pull $IMAGE_PREFIX/$s:$GITHUB_SHA
+            docker tag  $IMAGE_PREFIX/$s:$GITHUB_SHA ${{ steps.ecr.outputs.registry }}/solidarytech-primary/$s:$GITHUB_SHA
+            docker push ${{ steps.ecr.outputs.registry }}/solidarytech-primary/$s:$GITHUB_SHA
+          done
