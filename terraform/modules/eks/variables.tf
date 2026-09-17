@@ -1,0 +1,11 @@
+variable "name" { type = string }
+variable "version_k8s" { type = string }
+variable "role_arn" { type = string }
+variable "vpc_id" { type = string }
+variable "public_subnet_ids" { type = list(string) }
+variable "private_subnet_ids" { type = list(string) }
+variable "instance_types" { type = list(string) }
+variable "capacity_type" { type = string }
+variable "desired" { type = number }
+variable "min" { type = number }
+variable "max" { type = number }
