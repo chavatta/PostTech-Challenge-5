@@ -1,0 +1,11 @@
+.env
+*.env
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+kubeconfig*

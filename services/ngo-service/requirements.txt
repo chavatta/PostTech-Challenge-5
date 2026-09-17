@@ -1,0 +1,6 @@
+# Versões atualizadas em relação ao repositório original (Flask 2.2.2 e gunicorn 20.1
+# possuem CVEs conhecidas que o Trivy/SCA aponta). Mantido o pin exato para build reproduzível.
+Flask==3.0.3
+psycopg2-binary==2.9.10
+gunicorn==23.0.0
+python-dotenv==1.0.1
