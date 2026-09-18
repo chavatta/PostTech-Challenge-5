@@ -229,13 +229,29 @@ scripts/03-ci-check.sh watch  # acompanha o run no terminal
 
 Ou abrir a aba **Actions** do repositório. Para o vídeo, mostrar:
 
-1. A matriz dos 3 serviços rodando em paralelo.
+1. A matriz dos 3 serviços rodando em paralelo. Primeiro run real: **3 CRITICAL + 14 HIGH bloqueados**
+   pelo Trivy e 3 findings do Semgrep, todos corrigidos ou justificados (ver 3.2 e `docs/SEGURANCA.md`).
+   Isso é evidência de que os gates funcionam, vale contar no vídeo.
 2. O relatório do Trivy (tabela de CVEs) em um job de `test` e um de `build`.
 3. O push para o GHCR com a tag do SHA. *"Tag imutável: o que foi testado é exatamente o que vai para o cluster."*
 4. Um PR de teste com uma vulnerabilidade proposital (ex.: `Flask==2.2.2` de volta) sendo **bloqueado** pelo Trivy.
    Esse é o melhor take de DevSecOps.
 
-### 3.5 Habilitar o SonarCloud (opcional)
+### 3.5 Visibilidade das imagens no GHCR (uma vez só)
+
+O repositório é privado, então os pacotes GHCR nascem privados. O EKS precisa puxar as imagens.
+Duas opções, escolha uma:
+
+- **A (recomendada, mais simples):** tornar os 3 pacotes públicos. GitHub → perfil → Packages →
+  `posttech-challenge-5/<serviço>` → Package settings → Change visibility → Public.
+  Imagens não contêm segredo algum (variáveis vêm do Kubernetes), então não há risco.
+- **B:** manter privado e criar um `imagePullSecret` no cluster. Requer token com `read:packages`:
+  `gh auth refresh -s read:packages` e depois o script da Etapa 4 cria o secret automaticamente.
+
+*Falar no vídeo:* "Imagem pública não é problema: ela não carrega configuração nem credencial.
+Tudo sensível entra em runtime via Secret do Kubernetes."
+
+### 3.6 Habilitar o SonarCloud (opcional)
 
 1. Criar projeto em sonarcloud.io apontando para o repositório.
 2. `gh secret set SONAR_TOKEN` e `gh variable set SONAR_ENABLED --body true`.
