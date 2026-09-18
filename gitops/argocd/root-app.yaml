@@ -1,0 +1,18 @@
+# App of Apps: esta única Application faz o ArgoCD gerenciar todas as outras (gitops/argocd/apps/).
+# É o único "kubectl apply" do projeto; tudo depois disso é sync via Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: solidarytech
+  source:
+    repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    targetRevision: main
+    path: gitops/argocd/apps
+  destination: { server: "https://kubernetes.default.svc", namespace: argocd }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]

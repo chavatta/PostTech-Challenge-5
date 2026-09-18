@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"       # ordem de instalação (menor primeiro)
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: solidarytech
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki-stack
+      targetRevision: "2.*"
+      helm:
+        releaseName: loki
+        valueFiles: [$values/gitops/platform/values/loki.yaml]
+    - repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+      targetRevision: main
+      ref: values
+  destination: { server: "https://kubernetes.default.svc", namespace: monitoring }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 5, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

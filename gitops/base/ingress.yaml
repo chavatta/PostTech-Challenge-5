@@ -1,0 +1,18 @@
+# Um único ponto de entrada (ingress-nginx). Cada serviço recebe seu prefixo.
+# As métricas do nginx (nginx_ingress_controller_requests) são um dos SLIs do donation-service.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: solidarytech
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 1m
+    nginx.ingress.kubernetes.io/limit-rps: "50"          # proteção básica contra abuso
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - { path: /ngos,       pathType: Prefix, backend: { service: { name: ngo-service,       port: { name: http } } } }
+          - { path: /donations,  pathType: Prefix, backend: { service: { name: donation-service,  port: { name: http } } } }
+          - { path: /volunteers, pathType: Prefix, backend: { service: { name: volunteer-service, port: { name: http } } } }
+          - { path: /health,     pathType: Exact,  backend: { service: { name: donation-service,  port: { name: http } } } }

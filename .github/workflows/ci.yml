@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # update-gitops faz commit da nova tag de imagem
   packages: write
 
 env:
@@ -217,6 +217,41 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  # ---------------------------------------------------------------- CD: atualiza a tag no overlay GitOps
+  # Elo CI -> CD: o pipeline NÃO faz kubectl apply. Ele só grava a tag da imagem no repositório;
+  # o ArgoCD detecta o commit e faz o rollout (pull-based, auditável pelo histórico do git).
+  update-gitops:
+    name: update gitops image tags
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name != 'pull_request'
+    concurrency: { group: gitops-main, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Instala kustomize
+        run: |
+          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+      - name: kustomize edit set image (3 serviços -> SHA do commit)
+        working-directory: gitops/overlays/production
+        run: |
+          for s in ngo-service donation-service volunteer-service; do
+            kustomize edit set image $IMAGE_PREFIX/$s=$IMAGE_PREFIX/$s:$GITHUB_SHA
+          done
+          kustomize build . > /dev/null   # valida o overlay antes de commitar
+          git diff --stat
+      - name: Commit + push
+        run: |
+          git config user.name  "solidarytech-ci[bot]"
+          git config user.email "ci@solidarytech.local"
+          git add gitops/overlays/production/kustomization.yaml
+          git diff --cached --quiet && echo "sem mudança" && exit 0
+          git commit -m "cd: imagens -> ${GITHUB_SHA::7} [skip ci]"
+          git push origin HEAD:main
 
   # ---------------------------------------------------------------- Espelho opcional para o ECR
   mirror-ecr:

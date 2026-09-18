@@ -268,4 +268,142 @@ Tudo sensível entra em runtime via Secret do Kubernetes."
 
 ## Etapa 4 — GitOps com ArgoCD
 
-_(a preencher)_
+**Objetivo:** nenhum `kubectl apply` de aplicação. O cluster converge para o que está em `gitops/`.
+**Requisitos atendidos:** "GitOps: entrega contínua via ArgoCD", "Rightsizing: requests e limits nos YAML via GitOps",
+"Não haverá deploy manual via kubectl".
+
+### 4.1 Estrutura
+
+| Caminho | Conteúdo |
+|---|---|
+| `gitops/base/` | manifests dos 3 serviços: Deployment (requests/limits, probes, securityContext restrito, spread entre AZs), Service, HPA, PDB, ServiceMonitor; Ingress; NetworkPolicy; Job PreSync que cria bancos/schemas |
+| `gitops/overlays/production/` | kustomize: **tags de imagem** (o CI reescreve com o SHA) + ConfigMap `app-config` (renderizado do Terraform) |
+| `gitops/argocd/` | AppProject, Application raiz (**app of apps**) e uma Application por componente com *sync waves* |
+| `gitops/platform/` | values dos charts (ingress-nginx, metrics-server, kube-prometheus-stack, loki, newrelic, velero), regras de SLO, dashboard, schedules do Velero |
+
+Elo CI → CD: job `update-gitops` (`.github/workflows/ci.yml`) roda `kustomize edit set image` e commita `[skip ci]`.
+O ArgoCD detecta e faz o rollout. Histórico de deploy = `git log gitops/overlays/production`.
+
+### 4.2 Bootstrap (uma vez por cluster)
+
+```bash
+scripts/04-bootstrap-cluster.sh      # ~10 min
+```
+
+| Passo | Por quê | Falar no vídeo |
+|---|---|---|
+| Lê outputs do Terraform | zero valor hardcoded | "A URL da fila vem do IaC." |
+| Secret `db-credentials` a partir do SSM | senha nunca passa por git nem pelo dev | "SecureString → Secret, direto." |
+| Renderiza e **commita** `app-config.yaml` | configuração não sensível é GitOps | |
+| Instala ArgoCD + deploy key somente leitura | acesso mínimo ao repositório privado | "Chave gerada agora, exclusiva deste cluster." |
+| `kubectl apply` do AppProject e da root app | **último apply manual do projeto** | "Daqui pra frente é só git." |
+| Aguarda Applications Healthy; smoke test pelo NLB | prova ponta a ponta | |
+
+### 4.3 Demonstrações
+
+```bash
+scripts/04-gitops-demo.sh selfheal      # kubectl scale manual é revertido pelo ArgoCD
+scripts/04-gitops-demo.sh rollout       # deploy disparado por commit
+scripts/04-gitops-demo.sh rightsizing   # kubectl top vs requests (evidência FinOps)
+```
+
+### Evidências
+- Print da UI do ArgoCD (Applications Synced/Healthy) e do `git log` com commits `cd: imagens -> <sha>`.
+- Print do selfHeal revertendo. Print de `kubectl top` ao lado dos requests.
+
+---
+
+## Etapa 5 — Observabilidade e APM
+
+**Objetivo:** stack completa (Prometheus, Grafana, Loki) via ArgoCD + APM New Relic com distributed tracing.
+**Requisito atendido:** "Observabilidade e APM: stack completa rodando e instrumentação no APM com Distributed Tracing".
+
+### 5.1 O que mudou no código
+| Arquivo | Mudança | Motivo |
+|---|---|---|
+| `services/*/app.py`, `requirements.txt` | `prometheus-flask-exporter` (`/metrics`) e agente `newrelic` | Golden Metrics no Prometheus; traces no New Relic |
+| `services/*/Dockerfile` (Python) | `newrelic-admin run-program gunicorn --workers 1 --threads 8` | agente APM; 1 worker = métricas consistentes por pod, escala via HPA |
+| `donation-service/metrics.go` | middleware `http_requests_total` / `http_request_duration_seconds` | base dos SLIs |
+| `donation-service/main.go` | `newrelic.WrapHandleFunc`, `nrawssdk` no SQS, contexto por request | trace: ingress → handler → Postgres → SQS |
+| `donation-service/main.go`, `go.mod` | **pgx v4 → v5** com tracer `nrpgx5`; `SetMaxOpenConns(10)` | o integrador `nrpgx` (v4) arrastava `jackc/pgx` v3 com 2 CVEs HIGH; v5 corrige e é a versão suportada |
+
+Sem `NEW_RELIC_LICENSE_KEY` o agente vira no-op: o código é o mesmo em dev e prod.
+
+### 5.2 Ativar o New Relic
+```bash
+export NEW_RELIC_LICENSE_KEY=<sua INGEST-LICENSE key>   # New Relic → API keys
+scripts/05-observability.sh
+```
+Cria o Secret nos namespaces, reinicia os serviços, força sync do `nri-bundle` e gera 2 min de tráfego.
+
+### 5.3 Mostrar
+- Grafana (`port-forward` impresso pelo script) → dashboard "SRE — donation-service SLOs & Error Budget".
+- Explore → Loki → `{namespace="solidarytech"}`.
+- New Relic → APM → `solidarytech-donation-service` → Distributed tracing → trace de `POST /donations` com spans Postgres e SQS.
+- New Relic → Kubernetes cluster explorer (`solidarytech-primary`).
+
+---
+
+## Etapa 6 — SRE: SLO, Error Budget e MTTR
+
+Definições formais: `docs/SRE.md`. Regras: `gitops/platform/slo-rules.yaml`. Dashboard: `gitops/platform/dashboards/`.
+
+```bash
+scripts/06-sre-chaos.sh errors   # injeta falha de banco 3 min → alerta burn rate → mitigação pelo runbook → MTTR medido
+scripts/06-sre-chaos.sh kill     # mata pods → auto healing sem perder /health
+scripts/06-sre-chaos.sh load     # pico → HPA escala
+```
+
+| Falar no vídeo |
+|---|
+| "Dois SLIs das Golden Metrics: disponibilidade 99,9 % e latência 99 % abaixo de 250 ms. Error budget de 43 minutos por mês." |
+| "O alerta não olha um limiar fixo: olha a velocidade de consumo do budget em duas janelas. 14× em 1 h acorda alguém; 6× em 6 h abre ticket." |
+| "MTTR: detecção em 2 min pelo alerta, diagnóstico pelo trace, correção pelo ArgoCD. Medimos <X> s no teste." |
+
+### Evidências
+- Prints do dashboard antes/durante/depois do caos; print do alerta em Prometheus → Alerts; valor do MTTR.
+
+---
+
+## Etapa 7 — FinOps
+
+Documento: `docs/FINOPS.md` (tags, rightsizing, forecast ≈ US$ 210/mês, recomendação Spot).
+
+```bash
+scripts/07-finops-report.sh tags    # inventário por tag + auditoria de recursos sem tag
+scripts/07-finops-report.sh usage   # kubectl top vs requests/limits
+scripts/07-finops-report.sh cost    # Cost Explorer por tag (pode ser negado no Academy)
+```
+
+Falar: "Cada recurso carrega Project, Environment e CostCenter porque o provider Terraform injeta as tags.
+Rightsizing veio de medição real. Spot nos nós corta 70 % do EC2 sem mudar código."
+
+---
+
+## Etapa 8 — Disaster Recovery e PCN
+
+Documento executivo: `docs/PCN.md` (RPO doações 5 min, RTO regional 60 min).
+
+```bash
+scripts/08-dr-setup.sh            # renderiza values do Velero com o bucket do Terraform e commita
+scripts/08-dr-drill.sh backup     # backup sob demanda + objetos no S3
+scripts/08-dr-drill.sh restore    # APAGA o namespace e restaura; imprime o RTO medido
+scripts/08-dr-drill.sh rds        # snapshot RDS + cópia cross-region
+scripts/02-terraform-apply.sh dr  # (opção B) sobe o espelho em us-west-2 — ou mostrar só o plan
+```
+
+Falar: "Duas camadas: Velero guarda o estado do cluster no S3 a cada hora; o Terraform sobe a região espelho
+com um comando. O banco tem PITR de 5 minutos e snapshot copiado para a outra região."
+
+---
+
+## Etapa 9 — ITSM, AIOps e entrega
+
+- `docs/ITSM.md`: ciclo de vida do incidente (diagrama Mermaid), severidades, runbooks, templates.
+- `docs/AIOPS.md`: passos no New Relic (Anomaly detection, Decisions, Workflows, Service Levels) e o que gravar.
+- `docs/RELATORIO.md`: modelo do PDF com todos os campos e prints exigidos.
+- `docs/VIDEO.md`: roteiro de 20 min com tempos e falas.
+- `scripts/09-evidencias.sh`: coleta outputs textuais para anexar.
+
+Ordem sugerida de gravação: Etapas 2 (plan), 3, 4, 5, 6, 7, 8, 9 — o roteiro de tempo está em `docs/VIDEO.md`.
+Ao final da sessão: `scripts/02-terraform-destroy.sh`.

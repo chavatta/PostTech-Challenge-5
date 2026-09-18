@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -11,8 +12,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
+	"github.com/newrelic/go-agent/v3/integrations/nrawssdk-v1"
+	"github.com/newrelic/go-agent/v3/integrations/nrpgx5" // tracer do pgx v5: spans de banco no trace distribuído
+	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Donation struct {
@@ -28,6 +34,7 @@ type App struct {
 	DB          *sql.DB
 	SqsSvc      *sqs.SQS
 	SqsQueueURL string
+	NR          *newrelic.Application // nil quando NEW_RELIC_LICENSE_KEY não está definida
 }
 
 func main() {
@@ -43,8 +50,23 @@ func main() {
 		log.Fatal("DATABASE_URL é obrigatória")
 	}
 
-	db, err := sql.Open("pgx", dbURL)
-	if err != nil || db.Ping() != nil {
+	// APM New Relic: configurado 100% por variáveis de ambiente (NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME,
+	// NEW_RELIC_DISTRIBUTED_TRACING_ENABLED). Sem licença, nrApp fica nil e todas as chamadas viram no-op.
+	nrApp, nrErr := newrelic.NewApplication(newrelic.ConfigFromEnvironment())
+	if nrErr != nil {
+		log.Printf("New Relic desabilitado: %v", nrErr)
+		nrApp = nil
+	}
+
+	// pgx v5 (o v4 do repositório original tinha CVEs) com tracer do New Relic.
+	pgCfg, err := pgx.ParseConfig(dbURL)
+	if err != nil {
+		log.Fatalf("DATABASE_URL inválida: %v", err)
+	}
+	pgCfg.Tracer = nrpgx5.NewTracer()
+	db := stdlib.OpenDB(*pgCfg)
+	db.SetMaxOpenConns(10) // alinhado ao tamanho do pod (rightsizing) e ao max_connections do db.t3.micro
+	if err := db.Ping(); err != nil {
 		log.Fatalf("Erro ao conectar ao banco de dados: %v", err)
 	}
 	log.Println("Conectado ao PostgreSQL (donation-service).")
@@ -60,15 +82,19 @@ func main() {
 			cfg.Endpoint = aws.String(ep)
 		}
 		sess, _ := session.NewSession(cfg)
+		nrawssdk.InstrumentHandlers(&sess.Handlers) // spans das chamadas SQS no trace distribuído
 		sqsSvc = sqs.New(sess)
 		log.Println("Integração com AWS SQS ativada.")
 	}
 
-	app := &App{DB: db, SqsSvc: sqsSvc, SqsQueueURL: queueURL}
+	app := &App{DB: db, SqsSvc: sqsSvc, SqsQueueURL: queueURL, NR: nrApp}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", app.HealthHandler)
-	mux.HandleFunc("/donations", app.DonationHandler)
+	// newrelic.WrapHandleFunc cria uma transação por request (no-op se nrApp == nil);
+	// instrument() registra as Golden Metrics para o Prometheus.
+	mux.HandleFunc(newrelic.WrapHandleFunc(nrApp, "/health", instrument("/health", app.HealthHandler)))
+	mux.HandleFunc(newrelic.WrapHandleFunc(nrApp, "/donations", instrument("/donations", app.DonationHandler)))
+	mux.Handle("/metrics", promhttp.Handler())
 
 	log.Printf("donation-service rodando na porta %s", port)
 	// TLS termina no Load Balancer/Ingress do Kubernetes; dentro do cluster o tráfego é HTTP na VPC privada.
@@ -92,7 +118,7 @@ func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		d.Status = "APPROVED" // Simulação de gateway de pagamento
-		err := a.DB.QueryRow(
+		err := a.DB.QueryRowContext(r.Context(),
 			"INSERT INTO donations (ngo_id, amount, donor_name, status) VALUES ($1, $2, $3, $4) RETURNING id, created_at",
 			d.NgoID, d.Amount, d.DonorName, d.Status,
 		).Scan(&d.ID, &d.CreatedAt)
@@ -104,7 +130,9 @@ func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if a.SqsSvc != nil {
-			go a.sendNotificationEvent(d)
+			// txn.NewGoroutine é nil-safe; mantém o envio assíncrono dentro do mesmo trace.
+			txn := newrelic.FromContext(r.Context())
+			go a.sendNotificationEvent(newrelic.NewContext(context.Background(), txn.NewGoroutine()), d)
 		}
 
 		w.WriteHeader(http.StatusCreated)
@@ -113,7 +141,7 @@ func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
-		rows, err := a.DB.Query("SELECT id, ngo_id, amount, donor_name, status, created_at FROM donations ORDER BY id DESC")
+		rows, err := a.DB.QueryContext(r.Context(), "SELECT id, ngo_id, amount, donor_name, status, created_at FROM donations ORDER BY id DESC LIMIT 100")
 		if err != nil {
 			http.Error(w, `{"error":"Erro interno"}`, http.StatusInternalServerError)
 			return
@@ -134,9 +162,9 @@ func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, `{"error":"Método não permitido"}`, http.StatusMethodNotAllowed)
 }
 
-func (a *App) sendNotificationEvent(d Donation) {
+func (a *App) sendNotificationEvent(ctx context.Context, d Donation) {
 	body, _ := json.Marshal(d)
-	_, err := a.SqsSvc.SendMessage(&sqs.SendMessageInput{
+	_, err := a.SqsSvc.SendMessageWithContext(ctx, &sqs.SendMessageInput{
 		MessageBody: aws.String(string(body)),
 		QueueUrl:    aws.String(a.SqsQueueURL),
 	})

@@ -1,0 +1,14 @@
+# Gerado por scripts/04-bootstrap-cluster.sh a partir dos outputs do Terraform (valores não sensíveis).
+# Segredos (DATABASE_URL, licença New Relic) NÃO ficam aqui: são Secrets criados pelo script.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: solidarytech
+data:
+  AWS_REGION: us-east-1
+  AWS_SQS_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/solidarytech-primary-donations"
+  AWS_DYNAMODB_TABLE: SolidaryTechVolunteers
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "true"
+  NEW_RELIC_LOG: stdout
+  NEW_RELIC_LOG_LEVEL: info

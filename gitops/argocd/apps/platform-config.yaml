@@ -1,0 +1,21 @@
+# Recursos declarativos da plataforma que dependem dos CRDs dos charts acima:
+# PrometheusRules (SLOs/alertas), dashboards Grafana, Schedules do Velero.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: solidarytech
+  source:
+    repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    targetRevision: main
+    path: gitops/platform
+  destination: { server: "https://kubernetes.default.svc" }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, SkipDryRunOnMissingResource=true]
+    retry: { limit: 5, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

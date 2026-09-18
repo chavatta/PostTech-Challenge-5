@@ -36,8 +36,12 @@ Todas decorrem de duas restrições do AWS Academy Learner Lab, ou de FinOps no 
 | `go.lang.security.audit.net.use-tls.use-tls` | `donation-service/main.go` | TLS termina no Load Balancer/Ingress; o pod só recebe HTTP dentro da VPC privada. |
 | `python.flask...avoid_app_run_with_bad_host` | `ngo-service/app.py`, `volunteer-service/app.py` | `app.run` só executa em `python app.py` (dev). O container usa gunicorn como entrypoint. |
 
-## Postura de runtime (Etapa 4)
+## Postura de runtime (implementada em `gitops/base`)
 
-- Containers non-root, filesystem read-only, `allowPrivilegeEscalation: false`, capabilities dropadas.
-- NetworkPolicy: donation-service só recebe tráfego do ingress e só fala com RDS/SQS.
-- Secrets de banco vêm do SSM (SecureString) e viram `Secret` do Kubernetes por script; nunca no git.
+- Namespace com Pod Security Standard **restricted** (enforce).
+- Containers non-root, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities: drop ALL`, seccomp RuntimeDefault (inclusive no Job de init do banco).
+- NetworkPolicy `backend-default`: ingress só do ingress-nginx e do Prometheus; egress só DNS, RDS (VPC), HTTPS e IMDS.
+- Ingress com rate limit (50 rps) e body máximo 1 MB.
+- Secrets (`db-credentials`, `newrelic-license`) criados por script a partir do SSM / variável de ambiente; nunca no git.
+- ArgoCD com AppProject restrito às fontes conhecidas e deploy key somente leitura.
+- Trivy `config` também varre `gitops/` no `03-ci-check.sh` (pegou `readOnlyRootFilesystem` faltando no Job).

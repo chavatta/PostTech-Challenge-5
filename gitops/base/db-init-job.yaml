@@ -1,0 +1,68 @@
+# Hook PreSync do ArgoCD: antes de cada sync garante os bancos e schemas.
+# Idempotente (IF NOT EXISTS / ON CONFLICT), então pode rodar quantas vezes for preciso.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init-sql
+data:
+  ngo.sql: |
+    CREATE TABLE IF NOT EXISTS ngos (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        cause VARCHAR(100) NOT NULL,
+        city VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO ngos (name, email, cause, city) VALUES
+    ('Anjos de Patas', 'contato@anjosdepatas.org', 'Proteção Animal', 'Osasco'),
+    ('Educa Mais', 'info@educamais.org', 'Educação', 'São Paulo')
+    ON CONFLICT (email) DO NOTHING;
+  donation.sql: |
+    CREATE TABLE IF NOT EXISTS donations (
+        id SERIAL PRIMARY KEY,
+        ngo_id INT NOT NULL,
+        amount NUMERIC(10, 2) NOT NULL,
+        donor_name VARCHAR(100) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS donations_ngo_id_idx ON donations (ngo_id);
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: { runAsNonRoot: true, runAsUser: 70, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: psql
+          image: postgres:16-alpine
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+          env:
+            - { name: HOME, value: /tmp }   # psql grava histórico em $HOME; root FS é read-only
+            - { name: DONATION_URL, valueFrom: { secretKeyRef: { name: db-credentials, key: donation_db_url } } }
+            - { name: NGO_URL,      valueFrom: { secretKeyRef: { name: db-credentials, key: ngo_db_url } } }
+          command: ["sh", "-ec"]
+          args:
+            - |
+              echo ">> garantindo banco ngo_db"
+              psql "$DONATION_URL" -tc "SELECT 1 FROM pg_database WHERE datname='ngo_db'" | grep -q 1 || psql "$DONATION_URL" -c "CREATE DATABASE ngo_db"
+              echo ">> schema donation_db"; psql "$DONATION_URL" -v ON_ERROR_STOP=1 -f /sql/donation.sql
+              echo ">> schema ngo_db";      psql "$NGO_URL"      -v ON_ERROR_STOP=1 -f /sql/ngo.sql
+              echo ">> ok"
+          volumeMounts: [{ name: sql, mountPath: /sql }, { name: tmp, mountPath: /tmp }]
+          resources: { requests: { cpu: 50m, memory: 32Mi }, limits: { cpu: 200m, memory: 64Mi } }
+      volumes:
+        - name: sql
+          configMap: { name: db-init-sql }
+        - name: tmp
+          emptyDir: { sizeLimit: 16Mi }

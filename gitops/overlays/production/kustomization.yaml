@@ -1,0 +1,14 @@
+# Overlay de produção. O job `update-gitops` do CI reescreve as tags abaixo com o SHA do commit
+# (kustomize edit set image). O ArgoCD detecta a mudança e faz o rollout. É o elo CI -> CD.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - app-config.yaml
+images:
+  - name: ghcr.io/chavatta/posttech-challenge-5/ngo-service
+    newTag: latest
+  - name: ghcr.io/chavatta/posttech-challenge-5/donation-service
+    newTag: latest
+  - name: ghcr.io/chavatta/posttech-challenge-5/volunteer-service
+    newTag: latest

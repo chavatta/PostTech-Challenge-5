@@ -1,0 +1,16 @@
+controller:
+  replicaCount: 2
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb        # NLB (L4) criado pelo cloud provider do EKS
+      service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: "Project=SolidaryTech,Environment=Production,CostCenter=NGO-Core"
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }                               # SLI de borda: nginx_ingress_controller_requests
+  config:
+    enable-opentelemetry: "false"
+    log-format-escape-json: "true"
+    log-format-upstream: '{"time":"$time_iso8601","status":$status,"method":"$request_method","uri":"$uri","latency":$request_time,"upstream":"$proxy_upstream_name","ingress":"$ingress_name"}'
+  resources: { requests: { cpu: 50m, memory: 96Mi }, limits: { cpu: 500m, memory: 256Mi } }
+  podDisruptionBudget: { enabled: true, minAvailable: 1 }

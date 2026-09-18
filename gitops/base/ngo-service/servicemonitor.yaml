@@ -1,0 +1,8 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ngo-service
+  labels: { app: ngo-service }
+spec:
+  selector: { matchLabels: { app: ngo-service } }
+  endpoints: [{ port: http, path: /metrics, interval: 15s }]

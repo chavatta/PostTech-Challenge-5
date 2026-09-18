@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# ------------------------------------------------------------------------------
+# 04 - Etapa 4: GitOps. Único momento em que se usa kubectl "diretamente", e só para bootstrap:
+#   1) Secrets (nunca vão para o git): credenciais do banco (lidas do SSM) e imagePullSecret opcional
+#   2) ConfigMap app-config renderizado a partir dos outputs do Terraform e COMMITADO (GitOps)
+#   3) Instala o ArgoCD e aplica o AppProject + a Application raiz (app of apps)
+# A partir daqui, todo deploy acontece via commit na main.
+# Pré-requisitos: scripts/02-terraform-apply.sh concluído; kubeconfig apontando para o cluster.
+# ------------------------------------------------------------------------------
+source "$(dirname "$0")/lib.sh"
+cd "$ROOT_DIR"
+"$ROOT_DIR/scripts/aws-login-check.sh"
+ARGOCD_VERSION="${ARGOCD_VERSION:-stable}"
+
+step "Lendo outputs do Terraform" "os manifests não têm valores hardcoded: tudo vem do IaC"
+cd terraform; terraform workspace select primary >/dev/null
+REGION=$(terraform output -raw region)
+SQS_URL=$(terraform output -raw sqs_queue_url)
+SSM_NGO=$(terraform output -json db_url_ssm_parameters | python3 -c 'import sys,json;print(json.load(sys.stdin)["ngo_db"])')
+SSM_DON=$(terraform output -json db_url_ssm_parameters | python3 -c 'import sys,json;print(json.load(sys.stdin)["donation_db"])')
+cd "$ROOT_DIR"
+kubectl get nodes >/dev/null || fail "kubectl não alcança o cluster (rode: $(cd terraform && terraform output -raw kubeconfig_command))"
+ok "região=$REGION fila=$SQS_URL"
+
+step "Namespace + Secret db-credentials (a partir do SSM SecureString)" \
+     "a senha do RDS nunca passa pelo git nem por variável de ambiente do dev; sai do SSM direto para o Secret"
+kubectl create namespace solidarytech --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+kubectl -n solidarytech create secret generic db-credentials \
+  --from-literal=ngo_db_url="$(aws ssm get-parameter --name "$SSM_NGO" --with-decryption --query Parameter.Value --output text)" \
+  --from-literal=donation_db_url="$(aws ssm get-parameter --name "$SSM_DON" --with-decryption --query Parameter.Value --output text)" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+ok "secret db-credentials criado"
+
+step "imagePullSecret para o GHCR (opcional)" \
+     "só é necessário se os pacotes GHCR continuarem privados; com token sem read:packages, pula"
+if gh auth status 2>/dev/null | grep -q "read:packages"; then
+  kubectl -n solidarytech create secret docker-registry ghcr-pull \
+    --docker-server=ghcr.io --docker-username="$(gh api user -q .login)" --docker-password="$(gh auth token)" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  kubectl -n solidarytech patch serviceaccount default -p '{"imagePullSecrets":[{"name":"ghcr-pull"}]}' >/dev/null
+  ok "imagePullSecret ghcr-pull configurado"
+else
+  ok "pulado (pacotes GHCR devem estar públicos — ver ROTEIRO 3.5)"
+fi
+
+step "Renderizando gitops/overlays/production/app-config.yaml e commitando" \
+     "configuração não sensível vive no git (GitOps); o ArgoCD é quem aplica"
+cat > gitops/overlays/production/app-config.yaml <<EOC
+# Gerado por scripts/04-bootstrap-cluster.sh a partir dos outputs do Terraform (valores não sensíveis).
+# Segredos (DATABASE_URL, licença New Relic) NÃO ficam aqui: são Secrets criados pelo script.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: solidarytech
+data:
+  AWS_REGION: $REGION
+  AWS_SQS_URL: "$SQS_URL"
+  AWS_DYNAMODB_TABLE: SolidaryTechVolunteers
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "true"
+  NEW_RELIC_LOG: stdout
+  NEW_RELIC_LOG_LEVEL: info
+EOC
+git add gitops/overlays/production/app-config.yaml
+git diff --cached --quiet || { git commit -q -m "gitops: app-config renderizado do Terraform (site primary)"; git push -q origin main; }
+ok "app-config no git"
+
+step "Instalando ArgoCD ($ARGOCD_VERSION)" "ferramenta de GitOps: observa o repositório e converge o cluster para o que está no git"
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+kubectl apply -n argocd -f "https://raw.githubusercontent.com/argoproj/argo-cd/$ARGOCD_VERSION/manifests/install.yaml" >/dev/null
+kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+ok "ArgoCD no ar"
+
+step "Acesso do ArgoCD ao repositório privado (deploy key somente leitura)" \
+     "chave gerada agora, exclusiva deste cluster; nenhuma senha pessoal entra no cluster"
+KEY=/tmp/argocd-deploy-key; rm -f $KEY $KEY.pub
+ssh-keygen -q -t ed25519 -N "" -C "argocd@solidarytech-$(date +%s)" -f $KEY
+gh repo deploy-key add $KEY.pub --title "argocd-$(hostname)-$(date +%Y%m%d%H%M)" >/dev/null
+kubectl -n argocd create secret generic repo-posttech \
+  --from-literal=type=git --from-literal=url=git@github.com:chavatta/PostTech-Challenge-5.git \
+  --from-file=sshPrivateKey=$KEY --dry-run=client -o yaml \
+  | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml | kubectl apply -f - >/dev/null
+rm -f $KEY $KEY.pub
+ok "repositório registrado no ArgoCD"
+
+step "AppProject + Application raiz (app of apps)" "último kubectl apply do projeto; daqui em diante é só git"
+kubectl apply -f gitops/argocd/project.yaml >/dev/null
+kubectl apply -f gitops/argocd/root-app.yaml >/dev/null
+ok "root app aplicada; ArgoCD vai criar as demais Applications"
+
+step "Aguardando sincronização (ingress, metrics-server, prometheus, loki, apps...) ~5-8 min" \
+     "sync waves: infraestrutura primeiro, apps por último"
+for i in $(seq 1 60); do
+  TOTAL=$(kubectl -n argocd get applications -o json | python3 -c 'import sys,json;a=json.load(sys.stdin)["items"];print(len(a))')
+  HEALTHY=$(kubectl -n argocd get applications -o json | python3 -c 'import sys,json;a=json.load(sys.stdin)["items"];print(sum(1 for x in a if x.get("status",{}).get("health",{}).get("status")=="Healthy" and x.get("status",{}).get("sync",{}).get("status")=="Synced"))')
+  printf "\r    %s/%s applications Healthy+Synced" "$HEALTHY" "$TOTAL"
+  [ "$TOTAL" -ge 9 ] && [ "$HEALTHY" -eq "$TOTAL" ] && break
+  sleep 10
+done; echo
+kubectl -n argocd get applications
+
+step "Smoke test via Load Balancer" "prova ponta a ponta: NLB -> ingress-nginx -> pods -> RDS/SQS/DynamoDB"
+LB=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "    URL: http://$LB"
+for i in $(seq 1 30); do curl -fsS "http://$LB/health" >/dev/null 2>&1 && break; sleep 10; done
+curl -fsS "http://$LB/health" && echo
+NGO_ID=$(curl -fsS -X POST "http://$LB/ngos" -H 'Content-Type: application/json' \
+  -d '{"name":"ONG GitOps","email":"gitops@solidarytech.org","cause":"Tecnologia","city":"São Paulo"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+curl -fsS -X POST "http://$LB/donations" -H 'Content-Type: application/json' -d "{\"ngo_id\":$NGO_ID,\"amount\":99.9,\"donor_name\":\"Demo\"}" && echo
+curl -fsS -X POST "http://$LB/volunteers" -H 'Content-Type: application/json' -d "{\"name\":\"Vol Demo\",\"email\":\"vol@demo.org\",\"ngo_id\":$NGO_ID}" && echo
+ok "fluxo completo funcionando em produção"
+
+step "Acesso à UI do ArgoCD" "para o vídeo: mostrar as Applications e o histórico de sync"
+echo "    senha admin: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
+echo "    kubectl -n argocd port-forward svc/argocd-server 8080:443   ->  https://localhost:8080 (user: admin)"

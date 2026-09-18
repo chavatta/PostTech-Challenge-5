@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - slo-rules.yaml
+  - velero-schedules.yaml
+configMapGenerator:
+  - name: grafana-dashboard-sre
+    namespace: monitoring
+    files: [dashboards/sre-donation-slo.json]
+    options:
+      labels: { grafana_dashboard: "1" }     # sidecar do Grafana importa automaticamente
+      disableNameSuffixHash: true

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ngo-service
+  labels: { app: ngo-service, tier: backend }
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }   # zero downtime no deploy
+  selector:
+    matchLabels: { app: ngo-service }
+  template:
+    metadata:
+      labels: { app: ngo-service, tier: backend }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: /metrics
+    spec:
+      # Segurança (Pod Security "restricted"): non-root, sem escalada, sem capabilities, FS read-only
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:                         # espalha réplicas entre AZs/nós (resiliência)
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: ngo-service } }
+      containers:
+        - name: ngo-service
+          image: ghcr.io/chavatta/posttech-challenge-5/ngo-service:latest   # tag real é definida no overlay pelo CI
+          ports: [{ name: http, containerPort: 8081 }]
+          envFrom:
+            - configMapRef: { name: app-config }          # AWS_REGION, AWS_SQS_URL, AWS_DYNAMODB_TABLE, NEW_RELIC_*
+            - secretRef: { name: newrelic-license, optional: true }
+          env:
+            - { name: PORT, value: "8081" }
+            - { name: NEW_RELIC_APP_NAME, value: "solidarytech-ngo-service" }
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: db-credentials, key: ngo_db_url } }
+          # ---- Rightsizing (FinOps): valores calibrados com kubectl top; ver docs/FINOPS.md ----
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits:   { cpu: 250m, memory: 192Mi }
+          # ---- Health checks: mesmo /health validado na Etapa 1 ----
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }             # único diretório gravável
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }

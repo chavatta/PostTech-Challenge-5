@@ -1,0 +1,17 @@
+# New Relic Kubernetes integration (nri-bundle): infraestrutura, eventos, logs e Pixie desligado (FinOps).
+# A licença vem do Secret "newrelic-license" criado por scripts/05-observability.sh (nunca no git).
+global:
+  cluster: solidarytech-primary
+  customSecretName: newrelic-license
+  customSecretLicenseKey: NEW_RELIC_LICENSE_KEY
+  lowDataMode: true                     # reduz volume ingerido (FinOps do APM)
+newrelic-infrastructure: { enabled: true }
+nri-metadata-injection: { enabled: true }
+kube-state-metrics: { enabled: false }  # já existe no kube-prometheus-stack
+nri-prometheus: { enabled: false }
+newrelic-prometheus-agent: { enabled: false }
+newrelic-logging: { enabled: true, lowDataMode: true }
+nri-kube-events: { enabled: true }
+kubeEvents: { enabled: true }
+pixie-chart: { enabled: false }
+newrelic-pixie: { enabled: false }

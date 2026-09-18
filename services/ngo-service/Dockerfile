@@ -29,5 +29,6 @@ EXPOSE 8081
 # Healthcheck local: útil no docker-compose; no Kubernetes usamos liveness/readiness probes.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8081/health',timeout=2).status==200 else 1)"
-# gunicorn com 2 workers x 4 threads: suficiente para o CRUD leve; access log no stdout (12-factor)
-CMD ["gunicorn", "--bind", "0.0.0.0:8081", "--workers", "2", "--threads", "4", "--access-logfile", "-", "app:app"]
+# 1 worker x 8 threads: métricas Prometheus consistentes por pod; escala horizontal é papel do HPA.
+# newrelic-admin envolve o gunicorn para APM/tracing; sem licença ele apenas não reporta.
+CMD ["newrelic-admin", "run-program", "gunicorn", "--bind", "0.0.0.0:8081", "--workers", "1", "--threads", "8", "--access-logfile", "-", "app:app"]

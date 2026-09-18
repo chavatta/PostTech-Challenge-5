@@ -4,6 +4,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
 from flask import Flask, request, jsonify
+from prometheus_flask_exporter import PrometheusMetrics
 from dotenv import load_dotenv
 import logging
 
@@ -13,6 +14,10 @@ log = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
+# Golden Metrics no /metrics: flask_http_request_total (tráfego/erros) e
+# flask_http_request_duration_seconds (latência). group_by='endpoint' evita cardinalidade por id.
+metrics = PrometheusMetrics(app, group_by="endpoint")
+metrics.info("app_info", "Informações do serviço", service=__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:

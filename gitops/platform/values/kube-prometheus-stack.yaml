@@ -1,0 +1,43 @@
+# Prometheus + Alertmanager + Grafana + exporters. Valores enxutos para 2 nós t3.medium (FinOps).
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources: { requests: { cpu: 200m, memory: 512Mi }, limits: { cpu: 1, memory: 1Gi } }
+    storageSpec:
+      volumeClaimTemplate:
+        spec: { storageClassName: gp2, resources: { requests: { storage: 10Gi } } }   # via EBS CSI
+    # Sem estas flags o operator só enxerga ServiceMonitors/Rules com o label do release
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+alertmanager:
+  alertmanagerSpec:
+    resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 128Mi } }
+  config:
+    route:
+      receiver: default
+      group_by: [alertname, service]
+      routes:
+        - receiver: sre-pager     # burn rate alto = página o on-call (ver docs/ITSM.md)
+          matchers: [severity="page"]
+        - receiver: sre-ticket    # burn rate lento = abre ticket
+          matchers: [severity="ticket"]
+    receivers:
+      - name: default
+      - name: sre-pager   # trocar por webhook do New Relic/PagerDuty/Slack
+      - name: sre-ticket
+grafana:
+  adminPassword: solidarytech-grafana     # lab; em produção usar secret existente (admin.existingSecret)
+  service: { type: ClusterIP }
+  sidecar:
+    dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: ALL }
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki:3100
+      access: proxy
+  resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 300m, memory: 256Mi } }
+kube-state-metrics:
+  resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 128Mi } }
+prometheus-node-exporter:
+  resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }

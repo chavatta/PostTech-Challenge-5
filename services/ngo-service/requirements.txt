@@ -4,3 +4,6 @@ Flask==3.0.3
 psycopg2-binary==2.9.10
 gunicorn==23.0.0
 python-dotenv==1.0.1
+# Observabilidade (Etapa 5): /metrics para o Prometheus e agente APM New Relic (distributed tracing)
+prometheus-flask-exporter==0.23.1
+newrelic==10.2.0

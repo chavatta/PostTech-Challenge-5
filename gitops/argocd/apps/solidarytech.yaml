@@ -1,0 +1,24 @@
+# Os 3 microsserviços (overlay de produção). Sync automático: commit na main = deploy.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: solidarytech
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: solidarytech
+  source:
+    repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    targetRevision: main
+    path: gitops/overlays/production
+  destination: { server: "https://kubernetes.default.svc", namespace: solidarytech }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }   # selfHeal: mudança manual no cluster é revertida (sem kubectl "na mão")
+    syncOptions: [CreateNamespace=true]
+    retry: { limit: 5, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers: [/spec/replicas]              # o HPA manda nas réplicas

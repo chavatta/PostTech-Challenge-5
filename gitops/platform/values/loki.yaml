@@ -1,0 +1,11 @@
+# Loki (logs) + Promtail (coleta de todos os pods). Grafana já aponta para http://loki:3100.
+loki:
+  persistence: { enabled: true, size: 10Gi, storageClassName: gp2 }
+  config:
+    table_manager: { retention_deletes_enabled: true, retention_period: 168h }   # 7 dias (FinOps)
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+promtail:
+  enabled: true
+  resources: { requests: { cpu: 20m, memory: 64Mi }, limits: { cpu: 200m, memory: 128Mi } }
+grafana: { enabled: false }
+prometheus: { enabled: false }
