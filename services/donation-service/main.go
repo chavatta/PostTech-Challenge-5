@@ -71,7 +71,8 @@ func main() {
 	mux.HandleFunc("/donations", app.DonationHandler)
 
 	log.Printf("donation-service rodando na porta %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	// TLS termina no Load Balancer/Ingress do Kubernetes; dentro do cluster o tráfego é HTTP na VPC privada.
+	log.Fatal(http.ListenAndServe(":"+port, mux)) // nosemgrep: go.lang.security.audit.net.use-tls.use-tls
 }
 
 func (a *App) HealthHandler(w http.ResponseWriter, r *http.Request) {

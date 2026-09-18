@@ -29,6 +29,13 @@ Todas decorrem de duas restrições do AWS Academy Learner Lab, ou de FinOps no 
 4. **Deletion protection off / skip final snapshot**: para `terraform destroy` limpo ao fim de cada sessão.
 5. **VPC Flow Logs / S3 access logs desligados**: custo de CloudWatch. Em produção ligar com retenção curta.
 
+## Exceções de SAST (semgrep, marcadas com `nosemgrep` no código)
+
+| Regra | Onde | Justificativa |
+|---|---|---|
+| `go.lang.security.audit.net.use-tls.use-tls` | `donation-service/main.go` | TLS termina no Load Balancer/Ingress; o pod só recebe HTTP dentro da VPC privada. |
+| `python.flask...avoid_app_run_with_bad_host` | `ngo-service/app.py`, `volunteer-service/app.py` | `app.run` só executa em `python app.py` (dev). O container usa gunicorn como entrypoint. |
+
 ## Postura de runtime (Etapa 4)
 
 - Containers non-root, filesystem read-only, `allowPrivilegeEscalation: false`, capabilities dropadas.

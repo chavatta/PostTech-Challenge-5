@@ -56,7 +56,7 @@ jobs:
       - name: terraform validate
         run: terraform init -backend=false -input=false && terraform validate
       - name: Trivy IaC misconfiguration scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         env:
           TRIVY_SKIP_CHECK_UPDATE: "true" # usa os checks embutidos (evita incompatibilidade de bundle)
         with:
@@ -148,7 +148,7 @@ jobs:
           go test -v -cover ./...
 
       - name: Trivy SCA (dependências)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: services/${{ matrix.service }}
@@ -187,7 +187,7 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
       - name: Trivy image scan (bloqueia CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
           severity: CRITICAL,HIGH

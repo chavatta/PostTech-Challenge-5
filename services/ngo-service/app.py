@@ -71,4 +71,5 @@ def get_ngos():
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 8081))
-    app.run(host='0.0.0.0', port=port)
+    # Somente desenvolvimento local (python app.py). No container o servidor é o gunicorn (ver Dockerfile).
+    app.run(host='0.0.0.0', port=port)  # nosemgrep: python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host
