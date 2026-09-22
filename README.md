@@ -36,7 +36,7 @@ gitops/
   argocd/            AppProject, root app (app of apps) e uma Application por componente com sync waves
   platform/          values dos charts (ingress-nginx, metrics-server, kube-prometheus-stack, loki, newrelic, velero),
                      regras de SLO (PrometheusRule), dashboard Grafana, Schedules do Velero
-scripts/             scripts numerados por etapa, com explicação de cada passo
+scripts/             scripts numerados por etapa (bash; macOS/Linux/Windows-Git Bash, qualquer Docker com Compose v2)
 docs/                ROTEIRO, SRE, FINOPS, PCN, ITSM, AIOPS, SEGURANCA, RELATORIO (modelo do PDF), VIDEO (roteiro)
 ```
 

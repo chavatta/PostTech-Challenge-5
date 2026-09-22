@@ -9,7 +9,7 @@ cd "$ROOT_DIR"
 
 step "Build das imagens + subida do ambiente local" \
      "multi-stage builds geram imagens pequenas; LocalStack emula SQS/DynamoDB sem custo AWS"
-docker compose -f local/docker-compose.yml up -d --build --wait
+compose -f local/docker-compose.yml up -d --build --wait
 ok "containers no ar"
 
 step "Tamanho das imagens geradas" \
@@ -38,7 +38,7 @@ ok "voluntário registrado no DynamoDB (LocalStack)"
 
 step "Verificando que a doação virou evento na fila SQS" \
      "prova a integração assíncrona do donation-service"
-docker compose -f local/docker-compose.yml exec -T localstack \
+compose -f local/docker-compose.yml exec -T localstack \
   awslocal sqs receive-message --queue-url http://localhost:4566/000000000000/solidary-donations \
   --max-number-of-messages 1 | python3 -c 'import sys,json;m=json.load(sys.stdin)["Messages"][0];print(m["Body"])'
 ok "evento SQS recebido"

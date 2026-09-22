@@ -28,6 +28,11 @@ scripts/00-preflight.sh
 | Por quê | Falha rápida. Descobrir que falta uma ferramenta no meio da gravação custa uma tomada inteira. |
 | Falar no vídeo | "Antes de tudo, validamos o ambiente. O projeto não depende de nada instalado à mão além dessas CLIs." |
 
+Os scripts são `bash` e funcionam em **macOS, Linux e Windows (Git Bash ou WSL)** com **qualquer runtime Docker**
+(Docker Desktop, Colima, Rancher Desktop, OrbStack, Podman Desktop) que tenha o Compose v2 (`docker compose`).
+No Windows, rode sempre pelo Git Bash: `scripts/lib.sh` desliga a conversão de caminhos do MSYS e converte os
+mounts com `cygpath`. O scan de imagens usa `docker save` + Trivy em tar, sem depender do `docker.sock`.
+
 ### 1.2 O que mudou no código-base original
 
 Tudo que foi alterado em relação ao repositório do professor, e o motivo:
