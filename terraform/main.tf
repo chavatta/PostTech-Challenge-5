@@ -17,6 +17,8 @@ module "registry" {
   services   = keys(local.services)
   account_id = data.aws_caller_identity.current.account_id
   region     = var.region
+
+  manage_velero_bucket = var.manage_velero_bucket
 }
 
 module "eks" {

@@ -29,6 +29,36 @@ resource "aws_eks_cluster" "this" {
   depends_on = [aws_cloudwatch_log_group.cluster]
 }
 
+# Launch template explícito: IMDSv2 obrigatório (hardening) e hop limit 2. Sem IRSA no Academy, TODOS os pods
+# (EBS CSI, Velero, donation-service -> SQS, volunteer -> DynamoDB) pegam credenciais da LabRole via IMDS do nó;
+# com hop limit 1 a chamada morre na rede do pod e os pods ficam em CrashLoop (add-on preso em CREATING).
+resource "aws_launch_template" "nodes" {
+  name_prefix = "${var.name}-ng-"
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 20
+      volume_type           = "gp3"
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = { Name = "${var.name}-node" }
+  }
+
+  lifecycle { create_before_destroy = true }
+}
+
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.name}-ng"
@@ -36,7 +66,11 @@ resource "aws_eks_node_group" "default" {
   subnet_ids      = var.private_subnet_ids
   instance_types  = var.instance_types
   capacity_type   = var.capacity_type
-  disk_size       = 20
+
+  launch_template {
+    id      = aws_launch_template.nodes.id
+    version = aws_launch_template.nodes.latest_version
+  }
 
   scaling_config {
     desired_size = var.desired
@@ -82,6 +116,10 @@ resource "aws_eks_addon" "coredns" {
 resource "aws_eks_addon" "ebs_csi" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "aws-ebs-csi-driver"
+  resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
-  depends_on                  = [aws_eks_node_group.default]
+  # precisa de rede (vpc-cni) e DNS (coredns) prontos para os pods do controller subirem;
+  # no lab já vimos o add-on ficar em CREATING por 20 min quando criado cedo demais.
+  depends_on = [aws_eks_node_group.default, aws_eks_addon.vpc_cni, aws_eks_addon.coredns]
+  timeouts { create = "30m" }
 }

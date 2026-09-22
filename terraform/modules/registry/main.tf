@@ -28,25 +28,34 @@ resource "aws_ecr_lifecycle_policy" "keep_last" {
 }
 
 # ---------- Bucket de backup (Velero) ----------
+# Algumas contas do AWS Academy têm uma SCP que nega s3:GetBucketObjectLockConfiguration. O provider AWS
+# chama essa API ao ler QUALQUER aws_s3_bucket e falha (AccessDenied). Nessas contas: manage_velero_bucket=false;
+# o nome continua saindo no output e scripts/08-dr-setup.sh cria o bucket via CLI com as mesmas propriedades.
+locals { backup_bucket_name = "${var.name}-velero-${var.account_id}" } # nome global único
+
 resource "aws_s3_bucket" "backup" {
-  bucket        = "${var.name}-velero-${var.account_id}" # nome global único
-  force_destroy = true                                   # lab
+  count         = var.manage_velero_bucket ? 1 : 0
+  bucket        = local.backup_bucket_name
+  force_destroy = true # lab
 }
 
 resource "aws_s3_bucket_versioning" "backup" {
-  bucket = aws_s3_bucket.backup.id
+  count  = var.manage_velero_bucket ? 1 : 0
+  bucket = aws_s3_bucket.backup[0].id
   versioning_configuration { status = "Enabled" } # protege contra deleção acidental de backup
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "backup" {
-  bucket = aws_s3_bucket.backup.id
+  count  = var.manage_velero_bucket ? 1 : 0
+  bucket = aws_s3_bucket.backup[0].id
   rule {
     apply_server_side_encryption_by_default { sse_algorithm = "AES256" }
   }
 }
 
 resource "aws_s3_bucket_public_access_block" "backup" {
-  bucket                  = aws_s3_bucket.backup.id
+  count                   = var.manage_velero_bucket ? 1 : 0
+  bucket                  = aws_s3_bucket.backup[0].id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -55,7 +64,8 @@ resource "aws_s3_bucket_public_access_block" "backup" {
 
 # FinOps: backups com mais de 30 dias expiram (alinhado à retenção definida no PCN).
 resource "aws_s3_bucket_lifecycle_configuration" "backup" {
-  bucket = aws_s3_bucket.backup.id
+  count  = var.manage_velero_bucket ? 1 : 0
+  bucket = aws_s3_bucket.backup[0].id
   rule {
     id     = "expire-old-backups"
     status = "Enabled"

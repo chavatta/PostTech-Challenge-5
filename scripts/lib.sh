@@ -4,6 +4,8 @@
 # o terminal mostre O QUE está sendo feito e O MOTIVO antes do comando rodar.
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Todo comando `aws` precisa de região; o bloco de credenciais do Learner Lab não traz uma.
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION:-us-east-1}}"
 
 step() {  # $1 = o que | $2 = por quê
   printf '\n\033[1;36m==> %s\033[0m\n' "$1"

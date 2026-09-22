@@ -28,6 +28,9 @@ Todas decorrem de duas restrições do AWS Academy Learner Lab, ou de FinOps no 
    privado + bastion/VPN.
 4. **Deletion protection off / skip final snapshot**: para `terraform destroy` limpo ao fim de cada sessão.
 5. **VPC Flow Logs / S3 access logs desligados**: custo de CloudWatch. Em produção ligar com retenção curta.
+6. **Bucket do Velero fora do Terraform em algumas contas** (`manage_velero_bucket=false`): a SCP do Academy nega
+   `s3:GetBucketObjectLockConfiguration` e o provider AWS não consegue ler o bucket. O `08-dr-setup.sh` aplica as
+   mesmas propriedades (versionamento, SSE, bloqueio público, lifecycle, tags) via CLI. Em produção: Terraform.
 
 ## Exceções de SAST (semgrep, marcadas com `nosemgrep` no código)
 

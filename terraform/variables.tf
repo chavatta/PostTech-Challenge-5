@@ -112,3 +112,9 @@ variable "budget_email" {
   type    = string
   default = ""
 }
+
+variable "manage_velero_bucket" {
+  type        = bool
+  default     = true
+  description = "false se a SCP da conta Academy negar s3:GetBucketObjectLockConfiguration (AccessDenied ao ler o bucket). Ver docs/ROTEIRO.md 2.5."
+}

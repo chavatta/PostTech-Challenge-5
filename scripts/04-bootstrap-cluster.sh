@@ -19,16 +19,20 @@ SQS_URL=$(terraform output -raw sqs_queue_url)
 SSM_NGO=$(terraform output -json db_url_ssm_parameters | python3 -c 'import sys,json;print(json.load(sys.stdin)["ngo_db"])')
 SSM_DON=$(terraform output -json db_url_ssm_parameters | python3 -c 'import sys,json;print(json.load(sys.stdin)["donation_db"])')
 cd "$ROOT_DIR"
+export AWS_DEFAULT_REGION="$REGION" AWS_REGION="$REGION"   # todos os `aws` abaixo usam a região do IaC
 kubectl get nodes >/dev/null || fail "kubectl não alcança o cluster (rode: $(cd terraform && terraform output -raw kubeconfig_command))"
 ok "região=$REGION fila=$SQS_URL"
 
 step "Namespace + Secret db-credentials (a partir do SSM SecureString)" \
      "a senha do RDS nunca passa pelo git nem por variável de ambiente do dev; sai do SSM direto para o Secret"
 kubectl create namespace solidarytech --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+NGO_URL=$(aws ssm get-parameter --name "$SSM_NGO" --with-decryption --query Parameter.Value --output text) || fail "não consegui ler $SSM_NGO no SSM"
+DON_URL=$(aws ssm get-parameter --name "$SSM_DON" --with-decryption --query Parameter.Value --output text) || fail "não consegui ler $SSM_DON no SSM"
+[ -n "$NGO_URL" ] && [ -n "$DON_URL" ] || fail "DATABASE_URL vazia no SSM: o terraform apply terminou?"
 kubectl -n solidarytech create secret generic db-credentials \
-  --from-literal=ngo_db_url="$(aws ssm get-parameter --name "$SSM_NGO" --with-decryption --query Parameter.Value --output text)" \
-  --from-literal=donation_db_url="$(aws ssm get-parameter --name "$SSM_DON" --with-decryption --query Parameter.Value --output text)" \
+  --from-literal=ngo_db_url="$NGO_URL" --from-literal=donation_db_url="$DON_URL" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+unset NGO_URL DON_URL
 ok "secret db-credentials criado"
 
 step "imagePullSecret para o GHCR (opcional)" \
@@ -67,7 +71,8 @@ ok "app-config no git"
 
 step "Instalando ArgoCD ($ARGOCD_VERSION)" "ferramenta de GitOps: observa o repositório e converge o cluster para o que está no git"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-kubectl apply -n argocd -f "https://raw.githubusercontent.com/argoproj/argo-cd/$ARGOCD_VERSION/manifests/install.yaml" >/dev/null
+# --server-side: o CRD applicationsets.argoproj.io excede o limite de 256 KB da annotation last-applied do apply client-side
+kubectl apply -n argocd --server-side --force-conflicts -f "https://raw.githubusercontent.com/argoproj/argo-cd/$ARGOCD_VERSION/manifests/install.yaml" >/dev/null
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
 ok "ArgoCD no ar"
 
