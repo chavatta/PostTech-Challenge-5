@@ -46,5 +46,5 @@ Todas decorrem de duas restrições do AWS Academy Learner Lab, ou de FinOps no 
 - NetworkPolicy `backend-default`: ingress só do ingress-nginx e do Prometheus; egress só DNS, RDS (VPC), HTTPS e IMDS.
 - Ingress com rate limit (50 rps) e body máximo 1 MB.
 - Secrets (`db-credentials`, `newrelic-license`) criados por script a partir do SSM / variável de ambiente; nunca no git.
-- ArgoCD com AppProject restrito às fontes conhecidas e deploy key somente leitura.
+- ArgoCD com AppProject restrito às fontes conhecidas e credencial HTTPS do contribuidor que sobe o ambiente (ou token dedicado via ARGOCD_REPO_TOKEN).
 - Trivy `config` também varre `gitops/` no `03-ci-check.sh` (pegou `readOnlyRootFilesystem` faltando no Job).

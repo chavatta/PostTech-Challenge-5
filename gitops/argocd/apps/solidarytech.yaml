@@ -10,7 +10,7 @@ metadata:
 spec:
   project: solidarytech
   source:
-    repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    repoURL: https://github.com/chavatta/PostTech-Challenge-5.git
     targetRevision: main
     path: gitops/overlays/production
   destination: { server: "https://kubernetes.default.svc", namespace: solidarytech }

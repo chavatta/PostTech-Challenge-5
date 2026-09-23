@@ -15,7 +15,7 @@ spec:
       helm:
         releaseName: ingress-nginx
         valueFiles: [$values/gitops/platform/values/ingress-nginx.yaml]
-    - repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    - repoURL: https://github.com/chavatta/PostTech-Challenge-5.git
       targetRevision: main
       ref: values
   destination: { server: "https://kubernetes.default.svc", namespace: ingress-nginx }

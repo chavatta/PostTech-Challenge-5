@@ -76,16 +76,22 @@ kubectl apply -n argocd --server-side --force-conflicts -f "https://raw.githubus
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
 ok "ArgoCD no ar"
 
-step "Acesso do ArgoCD ao repositório privado (deploy key somente leitura)" \
-     "chave gerada agora, exclusiva deste cluster; nenhuma senha pessoal entra no cluster"
-KEY=/tmp/argocd-deploy-key; rm -f $KEY $KEY.pub
-ssh-keygen -q -t ed25519 -N "" -C "argocd@solidarytech-$(date +%s)" -f $KEY
-gh repo deploy-key add $KEY.pub --title "argocd-$(hostname)-$(date +%Y%m%d%H%M)" >/dev/null
+step "Acesso do ArgoCD ao repositório privado (HTTPS + token de quem roda o script)" \
+     "funciona para qualquer contribuidor: basta ter leitura no repo (deploy key exigiria ser o dono)"
+# URL do repo vem do próprio manifest (fonte única de verdade), não de um valor fixo no script
+REPO_URL=$(awk '/repoURL:/{print $2; exit}' gitops/argocd/root-app.yaml)
+REPO=${REPO_URL#https://github.com/}; REPO=${REPO%.git}
+# ARGOCD_REPO_TOKEN opcional: permite usar um token dedicado (ex.: PAT só leitura) em vez do token do gh
+TOKEN="${ARGOCD_REPO_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+[ -n "$TOKEN" ] || fail "sem token do GitHub: rode 'gh auth login' (ou exporte ARGOCD_REPO_TOKEN)"
+GH_USER=$(GH_TOKEN="$TOKEN" gh api user --jq .login 2>/dev/null) || fail "token do GitHub inválido"
+GH_TOKEN="$TOKEN" gh api "repos/$REPO" --jq .full_name >/dev/null 2>&1 \
+  || fail "a conta '$GH_USER' não enxerga $REPO: peça acesso de colaborador ou troque com 'gh auth switch'"
 kubectl -n argocd create secret generic repo-posttech \
-  --from-literal=type=git --from-literal=url=git@github.com:chavatta/PostTech-Challenge-5.git \
-  --from-file=sshPrivateKey=$KEY --dry-run=client -o yaml \
+  --from-literal=type=git --from-literal=url="$REPO_URL" \
+  --from-literal=username="$GH_USER" --from-literal=password="$TOKEN" --dry-run=client -o yaml \
   | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml | kubectl apply -f - >/dev/null
-rm -f $KEY $KEY.pub
+unset TOKEN
 ok "repositório registrado no ArgoCD"
 
 step "AppProject + Application raiz (app of apps)" "último kubectl apply do projeto; daqui em diante é só git"

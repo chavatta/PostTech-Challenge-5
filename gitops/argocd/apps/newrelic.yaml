@@ -15,7 +15,7 @@ spec:
       helm:
         releaseName: newrelic
         valueFiles: [$values/gitops/platform/values/newrelic.yaml]
-    - repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    - repoURL: https://github.com/chavatta/PostTech-Challenge-5.git
       targetRevision: main
       ref: values
   destination: { server: "https://kubernetes.default.svc", namespace: newrelic }

@@ -9,7 +9,7 @@ metadata:
 spec:
   project: solidarytech
   source:
-    repoURL: git@github.com:chavatta/PostTech-Challenge-5.git
+    repoURL: https://github.com/chavatta/PostTech-Challenge-5.git
     targetRevision: main
     path: gitops/argocd/apps
   destination: { server: "https://kubernetes.default.svc", namespace: argocd }

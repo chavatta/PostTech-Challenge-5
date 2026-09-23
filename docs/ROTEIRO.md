@@ -312,7 +312,7 @@ scripts/04-bootstrap-cluster.sh      # ~10 min
 | Lê outputs do Terraform | zero valor hardcoded | "A URL da fila vem do IaC." |
 | Secret `db-credentials` a partir do SSM | senha nunca passa por git nem pelo dev | "SecureString → Secret, direto." |
 | Renderiza e **commita** `app-config.yaml` | configuração não sensível é GitOps | |
-| Instala ArgoCD + deploy key somente leitura | acesso mínimo ao repositório privado | "Chave gerada agora, exclusiva deste cluster." |
+| Instala ArgoCD + credencial HTTPS do repo | qualquer contribuidor consegue subir o ambiente | "O ArgoCD usa o token de quem roda o script, só para ler o repositório." |
 | `kubectl apply` do AppProject e da root app | **último apply manual do projeto** | "Daqui pra frente é só git." |
 | Aguarda Applications Healthy; smoke test pelo NLB | prova ponta a ponta | |
 
