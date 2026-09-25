@@ -100,15 +100,21 @@ kubectl apply -f gitops/argocd/root-app.yaml >/dev/null
 ok "root app aplicada; ArgoCD vai criar as demais Applications"
 
 step "Aguardando sincronização (ingress, metrics-server, prometheus, loki, apps...) ~5-8 min" \
-     "sync waves: infraestrutura primeiro, apps por último"
+     "sync waves: infraestrutura primeiro, apps por último. O app newrelic fica de fora: ele só fica saudável depois que a Etapa 5 cria o Secret da licença"
+# esperado = root + um Application por arquivo em gitops/argocd/apps, menos o newrelic
+EXPECTED=$(( $(ls gitops/argocd/apps/*.yaml | wc -l) ))
 for i in $(seq 1 60); do
-  TOTAL=$(kubectl -n argocd get applications -o json | python3 -c 'import sys,json;a=json.load(sys.stdin)["items"];print(len(a))')
-  HEALTHY=$(kubectl -n argocd get applications -o json | python3 -c 'import sys,json;a=json.load(sys.stdin)["items"];print(sum(1 for x in a if x.get("status",{}).get("health",{}).get("status")=="Healthy" and x.get("status",{}).get("sync",{}).get("status")=="Synced"))')
-  printf "\r    %s/%s applications Healthy+Synced" "$HEALTHY" "$TOTAL"
-  [ "$TOTAL" -ge 9 ] && [ "$HEALTHY" -eq "$TOTAL" ] && break
+  read -r TOTAL HEALTHY < <(kubectl -n argocd get applications -o json | python3 -c '
+import sys,json
+a=[x for x in json.load(sys.stdin)["items"] if x["metadata"]["name"]!="newrelic"]
+ok=sum(1 for x in a if x.get("status",{}).get("health",{}).get("status")=="Healthy" and x.get("status",{}).get("sync",{}).get("status")=="Synced")
+print(len(a), ok)')
+  printf "\r    %s/%s applications Healthy+Synced (newrelic aguarda a Etapa 5)" "$HEALTHY" "$TOTAL"
+  [ "$TOTAL" -ge "$EXPECTED" ] && [ "$HEALTHY" -eq "$TOTAL" ] && break
   sleep 10
 done; echo
 kubectl -n argocd get applications
+[ "$HEALTHY" -eq "$TOTAL" ] || printf '\033[1;33m    ! nem todos ficaram Healthy em 10 min; veja acima (newrelic Degraded/Progressing é esperado até a Etapa 5)\033[0m\n'
 
 step "Smoke test via Load Balancer" "prova ponta a ponta: NLB -> ingress-nginx -> pods -> RDS/SQS/DynamoDB"
 LB=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')

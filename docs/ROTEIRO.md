@@ -316,6 +316,10 @@ scripts/04-bootstrap-cluster.sh      # ~10 min
 | `kubectl apply` do AppProject e da root app | **último apply manual do projeto** | "Daqui pra frente é só git." |
 | Aguarda Applications Healthy; smoke test pelo NLB | prova ponta a ponta | |
 
+> O Application `newrelic` aparece como `Degraded`/`Progressing` ao fim desta etapa, e isso é esperado: os pods do
+> nri-bundle precisam do Secret `newrelic-license`, que só é criado na Etapa 5. O script não espera por ele.
+> Os 3 serviços sobem normalmente, porque o Secret é `optional` para eles.
+
 ### 4.3 Demonstrações
 
 ```bash
