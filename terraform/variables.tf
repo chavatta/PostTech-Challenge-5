@@ -116,5 +116,5 @@ variable "budget_email" {
 variable "manage_velero_bucket" {
   type        = bool
   default     = true
-  description = "false se a SCP da conta Academy negar s3:GetBucketObjectLockConfiguration (AccessDenied ao ler o bucket). Ver docs/ROTEIRO.md 2.5."
+  description = "Definido automaticamente por scripts/02-terraform-apply.sh: false quando a SCP da conta nega s3:GetBucketObjectLockConfiguration; aí o bucket é criado via AWS CLI com as mesmas propriedades."
 }

@@ -20,6 +20,20 @@ terraform workspace select -or-create "$SITE" >/dev/null && ok "workspace: $(ter
 step "terraform fmt -check && terraform validate" "qualidade do IaC: código formatado e sintaticamente válido"
 terraform fmt -check -recursive && terraform validate -no-color && ok "código válido"
 
+step "Bucket do Velero: Terraform ou script?" \
+     "algumas contas Academy têm SCP que nega s3:GetBucketObjectLockConfiguration e o provider AWS falha ao ler o bucket; o teste decide sozinho, sem ninguém precisar saber disso antes"
+export AWS_DEFAULT_REGION=$(awk -F'"' '/^region/{print $2}' "environments/$SITE.tfvars") AWS_REGION=$(awk -F'"' '/^region/{print $2}' "environments/$SITE.tfvars")
+VELERO_BUCKET=$(velero_bucket_name "$SITE")
+if velero_bucket_tf_allowed "$VELERO_BUCKET"; then
+  export TF_VAR_manage_velero_bucket=true; ok "conta permite: bucket $VELERO_BUCKET gerenciado pelo Terraform"
+else
+  export TF_VAR_manage_velero_bucket=false
+  # se uma execução anterior já pôs o bucket no state, tira (só do state; o bucket continua existindo)
+  terraform state list 2>/dev/null | grep '^module.registry.aws_s3_bucket' | xargs -n1 terraform state rm >/dev/null 2>&1 || true
+  ensure_velero_bucket "$VELERO_BUCKET"
+  ok "SCP nega a leitura: bucket $VELERO_BUCKET criado/ajustado via AWS CLI com as mesmas propriedades do módulo"
+fi
+
 step "terraform plan" "mostra exatamente o que será criado antes de gastar dinheiro; o plano é salvo e aplicado sem surpresas"
 terraform plan -input=false -var-file="environments/$SITE.tfvars" -out="$SITE.tfplan" | tail -25
 

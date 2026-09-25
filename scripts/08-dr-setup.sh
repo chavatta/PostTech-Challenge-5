@@ -11,19 +11,9 @@ export VELERO_BUCKET=$(terraform output -raw velero_bucket) AWS_REGION=$(terrafo
 export AWS_DEFAULT_REGION="$AWS_REGION"
 
 step "Garantindo que o bucket $VELERO_BUCKET existe com versionamento, criptografia, bloqueio público e lifecycle" \
-     "em contas Academy cuja SCP nega GetBucketObjectLockConfiguration o Terraform roda com manage_velero_bucket=false e o bucket é criado aqui, com as mesmas propriedades do módulo"
-if aws s3api head-bucket --bucket "$VELERO_BUCKET" 2>/dev/null; then
-  ok "bucket já existe"
-else
-  if [ "$AWS_REGION" = "us-east-1" ]; then aws s3api create-bucket --bucket "$VELERO_BUCKET" >/dev/null
-  else aws s3api create-bucket --bucket "$VELERO_BUCKET" --create-bucket-configuration LocationConstraint="$AWS_REGION" >/dev/null; fi
-  ok "bucket criado"
-fi
-aws s3api put-bucket-tagging --bucket "$VELERO_BUCKET" --tagging 'TagSet=[{Key=Project,Value=SolidaryTech},{Key=Environment,Value=Production},{Key=CostCenter,Value=NGO-Core},{Key=ManagedBy,Value=Script}]'
-aws s3api put-bucket-versioning --bucket "$VELERO_BUCKET" --versioning-configuration Status=Enabled
-aws s3api put-bucket-encryption --bucket "$VELERO_BUCKET" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-aws s3api put-public-access-block --bucket "$VELERO_BUCKET" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-aws s3api put-bucket-lifecycle-configuration --bucket "$VELERO_BUCKET" --lifecycle-configuration '{"Rules":[{"ID":"expire-old-backups","Status":"Enabled","Filter":{},"Expiration":{"Days":30},"NoncurrentVersionExpiration":{"NoncurrentDays":7}}]}'
+     "idempotente: se o Terraform já criou, só confirma; se a SCP da conta impediu (ver 02), garante aqui também"
+# quando o Terraform gerencia o bucket, não mexe (evita drift); só garante quando é o script que cuida dele
+(cd terraform && terraform state list 2>/dev/null | grep -q '^module.registry.aws_s3_bucket.backup') || ensure_velero_bucket "$VELERO_BUCKET"
 ok "propriedades do bucket aplicadas (idempotente)"
 sed "s/\${VELERO_BUCKET}/$VELERO_BUCKET/; s/\${AWS_REGION}/$AWS_REGION/" gitops/platform/values/velero.yaml.tpl > gitops/platform/values/velero.yaml
 git add gitops/platform/values/velero.yaml
