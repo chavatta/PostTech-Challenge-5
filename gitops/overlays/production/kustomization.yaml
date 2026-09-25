@@ -8,10 +8,10 @@ resources:
 images:
 - name: ghcr.io/chavatta/posttech-challenge-5/donation-service
   newName: ghcr.io/chavatta/posttech-challenge-5/donation-service
-  newTag: 9079e809f76661d49553dc05ea34395bfa866d9e
+  newTag: a3ba735440714a7302d34c085361041519467d09
 - name: ghcr.io/chavatta/posttech-challenge-5/ngo-service
   newName: ghcr.io/chavatta/posttech-challenge-5/ngo-service
-  newTag: 9079e809f76661d49553dc05ea34395bfa866d9e
+  newTag: a3ba735440714a7302d34c085361041519467d09
 - name: ghcr.io/chavatta/posttech-challenge-5/volunteer-service
   newName: ghcr.io/chavatta/posttech-challenge-5/volunteer-service
-  newTag: 9079e809f76661d49553dc05ea34395bfa866d9e
+  newTag: a3ba735440714a7302d34c085361041519467d09
