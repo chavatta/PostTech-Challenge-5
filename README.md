@@ -64,8 +64,8 @@ scripts/01-local-up.sh                  # build + ambiente local + smoke test
 scripts/03-ci-check.sh                  # mesmos gates do pipeline, localmente
 scripts/aws-login-check.sh              # credenciais do Learner Lab
 scripts/02-terraform-apply.sh           # infra (~20 min)
-scripts/04-bootstrap-cluster.sh         # ArgoCD + app of apps; último kubectl apply do projeto (~10 min)
-NEW_RELIC_LICENSE_KEY=... scripts/05-observability.sh   # APM + tráfego para popular dashboards
+NEW_RELIC_LICENSE_KEY=... scripts/04-bootstrap-cluster.sh   # ArgoCD + app of apps; último kubectl apply do projeto (~10 min)
+scripts/05-observability.sh             # APM + tráfego para popular dashboards
 scripts/06-sre-chaos.sh errors          # injeta falha → alerta burn-rate → recuperação → MTTR
 scripts/07-finops-report.sh tags        # evidências FinOps
 scripts/08-dr-setup.sh && scripts/08-dr-drill.sh backup && scripts/08-dr-drill.sh restore
@@ -90,7 +90,7 @@ scripts/02-terraform-destroy.sh         # fim da sessão
 
 - Pacotes GHCR públicos (ou token com `read:packages`) para o cluster puxar as imagens.
 - Credenciais do Learner Lab ativas para as etapas 2 a 9.
-- `NEW_RELIC_LICENSE_KEY` exportada no shell antes da etapa 5.
+- `NEW_RELIC_LICENSE_KEY` exportada no shell antes da etapa 4 (o ArgoCD já instala o New Relic nela).
 - Nomes, RMs, prints e valores medidos (MTTR, RTO, `kubectl top`) em `docs/RELATORIO.md`.
 
 ## Ambiente

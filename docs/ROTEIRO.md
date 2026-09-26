@@ -304,6 +304,7 @@ O ArgoCD detecta e faz o rollout. Histórico de deploy = `git log gitops/overlay
 ### 4.2 Bootstrap (uma vez por cluster)
 
 ```bash
+export NEW_RELIC_LICENSE_KEY=<sua INGEST-LICENSE key>   # New Relic → API keys
 scripts/04-bootstrap-cluster.sh      # ~10 min
 ```
 
@@ -311,14 +312,14 @@ scripts/04-bootstrap-cluster.sh      # ~10 min
 |---|---|---|
 | Lê outputs do Terraform | zero valor hardcoded | "A URL da fila vem do IaC." |
 | Secret `db-credentials` a partir do SSM | senha nunca passa por git nem pelo dev | "SecureString → Secret, direto." |
+| Secret `newrelic-license` a partir do shell | o New Relic é instalado nesta etapa e precisa da licença antes | "Licença do shell para o cluster, nunca para o git." |
 | Renderiza e **commita** `app-config.yaml` | configuração não sensível é GitOps | |
 | Instala ArgoCD + credencial HTTPS do repo | qualquer contribuidor consegue subir o ambiente | "O ArgoCD usa o token de quem roda o script, só para ler o repositório." |
 | `kubectl apply` do AppProject e da root app | **último apply manual do projeto** | "Daqui pra frente é só git." |
 | Aguarda Applications Healthy; smoke test pelo NLB | prova ponta a ponta | |
 
-> O Application `newrelic` aparece como `Degraded`/`Progressing` ao fim desta etapa, e isso é esperado: os pods do
-> nri-bundle precisam do Secret `newrelic-license`, que só é criado na Etapa 5. O script não espera por ele.
-> Os 3 serviços sobem normalmente, porque o Secret é `optional` para eles.
+> Exige `NEW_RELIC_LICENSE_KEY` exportada (New Relic → API keys → INGEST - LICENSE): o ArgoCD instala o `nri-bundle`
+> nesta etapa e ele precisa do Secret `newrelic-license`, que o script cria **antes** de aplicar a root app.
 
 ### 4.3 Demonstrações
 
@@ -352,10 +353,9 @@ Sem `NEW_RELIC_LICENSE_KEY` o agente vira no-op: o código é o mesmo em dev e p
 
 ### 5.2 Ativar o New Relic
 ```bash
-export NEW_RELIC_LICENSE_KEY=<sua INGEST-LICENSE key>   # New Relic → API keys
-scripts/05-observability.sh
+scripts/05-observability.sh   # usa a mesma NEW_RELIC_LICENSE_KEY da Etapa 4
 ```
-Cria o Secret nos namespaces, reinicia os serviços, força sync do `nri-bundle` e gera 2 min de tráfego.
+Confere o Secret (criado na Etapa 4), reinicia os serviços, força sync do `nri-bundle` e gera 2 min de tráfego.
 
 ### 5.3 Mostrar
 - Grafana (`port-forward` impresso pelo script) → dashboard "SRE — donation-service SLOs & Error Budget".

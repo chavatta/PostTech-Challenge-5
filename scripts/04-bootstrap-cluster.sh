@@ -10,6 +10,8 @@
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT_DIR"
 "$ROOT_DIR/scripts/aws-login-check.sh"
+# falha logo no início, antes de mexer em qualquer coisa: o ArgoCD instala o New Relic nesta etapa e ele precisa da licença
+[ -n "${NEW_RELIC_LICENSE_KEY:-}" ] || fail "exporte NEW_RELIC_LICENSE_KEY antes da Etapa 4 (New Relic -> API keys -> INGEST - LICENSE)"
 ARGOCD_VERSION="${ARGOCD_VERSION:-stable}"
 
 step "Lendo outputs do Terraform" "os manifests não têm valores hardcoded: tudo vem do IaC"
@@ -34,6 +36,11 @@ kubectl -n solidarytech create secret generic db-credentials \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 unset NGO_URL DON_URL
 ok "secret db-credentials criado"
+
+step "Secret newrelic-license (namespaces solidarytech e newrelic)" \
+     "o ArgoCD instala o New Relic nesta etapa; a licença precisa existir antes, senão o nri-bundle não sobe. Vem do shell, nunca do git"
+ensure_newrelic_secret
+ok "secret newrelic-license criado"
 
 step "imagePullSecret para o GHCR (opcional)" \
      "só é necessário se os pacotes GHCR continuarem privados; com token sem read:packages, pula"
@@ -99,21 +106,22 @@ kubectl apply -f gitops/argocd/project.yaml >/dev/null
 kubectl apply -f gitops/argocd/root-app.yaml >/dev/null
 ok "root app aplicada; ArgoCD vai criar as demais Applications"
 
-step "Aguardando sincronização (ingress, metrics-server, prometheus, loki, apps...) ~5-8 min" \
-     "sync waves: infraestrutura primeiro, apps por último. O app newrelic fica de fora: ele só fica saudável depois que a Etapa 5 cria o Secret da licença"
-# esperado = root + um Application por arquivo em gitops/argocd/apps, menos o newrelic
-EXPECTED=$(( $(ls gitops/argocd/apps/*.yaml | wc -l) ))
+step "Aguardando sincronização (ingress, metrics-server, prometheus, loki, newrelic, apps...) ~5-8 min" \
+     "sync waves: infraestrutura primeiro, apps por último"
+EXPECTED=$(( $(ls gitops/argocd/apps/*.yaml | wc -l) + 1 ))   # root + um Application por arquivo
 for i in $(seq 1 60); do
   read -r TOTAL HEALTHY < <(kubectl -n argocd get applications -o json | python3 -c '
 import sys,json
-a=[x for x in json.load(sys.stdin)["items"] if x["metadata"]["name"]!="newrelic"]
+a=json.load(sys.stdin)["items"]
 ok=sum(1 for x in a if x.get("status",{}).get("health",{}).get("status")=="Healthy" and x.get("status",{}).get("sync",{}).get("status")=="Synced")
 print(len(a), ok)')
-  printf "\r    %s/%s applications Healthy+Synced (newrelic aguarda a Etapa 5)" "$HEALTHY" "$TOTAL"
+  printf "\r    %s/%s applications Healthy+Synced" "$HEALTHY" "$TOTAL"
   [ "$TOTAL" -ge "$EXPECTED" ] && [ "$HEALTHY" -eq "$TOTAL" ] && break
   sleep 10
 done; echo
 kubectl -n argocd get applications
+[ "$TOTAL" -ge "$EXPECTED" ] && [ "$HEALTHY" -eq "$TOTAL" ] \
+  || fail "nem todos os Applications ficaram Healthy+Synced em 10 min (veja acima: kubectl -n argocd describe application <nome>)"
 [ "$HEALTHY" -eq "$TOTAL" ] || printf '\033[1;33m    ! nem todos ficaram Healthy em 10 min; veja acima (newrelic Degraded/Progressing é esperado até a Etapa 5)\033[0m\n'
 
 step "Smoke test via Load Balancer" "prova ponta a ponta: NLB -> ingress-nginx -> pods -> RDS/SQS/DynamoDB"

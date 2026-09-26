@@ -56,3 +56,15 @@ ensure_velero_bucket() {  # $1 = nome do bucket
   aws s3api put-public-access-block --bucket "$1" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
   aws s3api put-bucket-lifecycle-configuration --bucket "$1" --lifecycle-configuration '{"Rules":[{"ID":"expire-old-backups","Status":"Enabled","Filter":{},"Expiration":{"Days":30},"NoncurrentVersionExpiration":{"NoncurrentDays":7}}]}'
 }
+
+# --- Licença New Relic ---
+# Secret criado ANTES de o ArgoCD instalar o nri-bundle (Etapa 4); a Etapa 5 só reaproveita. Idempotente.
+ensure_newrelic_secret() {
+  [ -n "${NEW_RELIC_LICENSE_KEY:-}" ] || fail "exporte NEW_RELIC_LICENSE_KEY antes de rodar (New Relic -> API keys -> INGEST - LICENSE)"
+  local ns
+  for ns in solidarytech newrelic; do
+    kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    kubectl -n "$ns" create secret generic newrelic-license --from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY" \
+      --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  done
+}

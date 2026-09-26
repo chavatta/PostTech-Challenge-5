@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # 05 - Etapa 5: Observabilidade. Prometheus/Grafana/Loki já sobem pelo ArgoCD (Etapa 4).
 # Este script:
-#   1) cria o Secret da licença New Relic (a partir da variável NEW_RELIC_LICENSE_KEY do SEU shell)
+#   1) confere o Secret da licença New Relic (criado na Etapa 4 a partir de NEW_RELIC_LICENSE_KEY)
 #   2) reinicia os deployments para o agente APM começar a reportar
 #   3) abre os acessos (port-forward) e gera tráfego para popular dashboards e traces
 # Uso: NEW_RELIC_LICENSE_KEY=xxxx scripts/05-observability.sh
@@ -10,15 +10,10 @@
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT_DIR"
 
-step "Secret newrelic-license nos namespaces solidarytech e newrelic" \
+step "Secret newrelic-license (já criado na Etapa 4; reaplica se a licença mudou)" \
      "a licença é lida da variável de ambiente e vai direto para o cluster; nunca para o git"
-[ -n "${NEW_RELIC_LICENSE_KEY:-}" ] || fail "exporte NEW_RELIC_LICENSE_KEY (New Relic -> API keys -> INGEST - LICENSE)"
-for ns in solidarytech newrelic; do
-  kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-  kubectl -n $ns create secret generic newrelic-license --from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY" \
-    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-done
-ok "secrets criados"
+ensure_newrelic_secret
+ok "secret confere"
 
 step "Reiniciando os 3 serviços para carregar o agente APM" "envFrom secretRef optional: sem restart o pod antigo não vê o secret"
 kubectl -n solidarytech rollout restart deploy ngo-service donation-service volunteer-service
