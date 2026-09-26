@@ -32,7 +32,7 @@ compose() { docker compose "$@"; }
 # (o próprio, se já existir; senão um bucket temporário) e responde se o Terraform pode gerenciá-lo.
 velero_bucket_tf_allowed() {  # $1 = nome do bucket do Velero; retorno 0 = pode, 1 = SCP nega
   local b="$1" probe="" err rc=0
-  if ! aws s3api head-bucket --bucket "$b" 2>/dev/null; then
+  if ! aws s3api head-bucket --bucket "$b" >/dev/null 2>&1; then
     probe="solidarytech-probe-$(date +%s)-$RANDOM"
     s3_create_bucket "$probe"; b="$probe"
   fi
@@ -49,12 +49,12 @@ s3_create_bucket() {  # us-east-1 não aceita LocationConstraint
 }
 # Cria (se preciso) o bucket com as MESMAS propriedades do módulo terraform/modules/registry. Idempotente.
 ensure_velero_bucket() {  # $1 = nome do bucket
-  aws s3api head-bucket --bucket "$1" 2>/dev/null || s3_create_bucket "$1"
-  aws s3api put-bucket-tagging --bucket "$1" --tagging 'TagSet=[{Key=Project,Value=SolidaryTech},{Key=Environment,Value=Production},{Key=CostCenter,Value=NGO-Core},{Key=ManagedBy,Value=Script}]'
-  aws s3api put-bucket-versioning --bucket "$1" --versioning-configuration Status=Enabled
-  aws s3api put-bucket-encryption --bucket "$1" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-  aws s3api put-public-access-block --bucket "$1" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-  aws s3api put-bucket-lifecycle-configuration --bucket "$1" --lifecycle-configuration '{"Rules":[{"ID":"expire-old-backups","Status":"Enabled","Filter":{},"Expiration":{"Days":30},"NoncurrentVersionExpiration":{"NoncurrentDays":7}}]}'
+  aws s3api head-bucket --bucket "$1" >/dev/null 2>&1 || s3_create_bucket "$1"
+  aws s3api put-bucket-tagging --bucket "$1" --tagging 'TagSet=[{Key=Project,Value=SolidaryTech},{Key=Environment,Value=Production},{Key=CostCenter,Value=NGO-Core},{Key=ManagedBy,Value=Script}]' >/dev/null
+  aws s3api put-bucket-versioning --bucket "$1" --versioning-configuration Status=Enabled >/dev/null
+  aws s3api put-bucket-encryption --bucket "$1" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' >/dev/null
+  aws s3api put-public-access-block --bucket "$1" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null
+  aws s3api put-bucket-lifecycle-configuration --bucket "$1" --lifecycle-configuration '{"Rules":[{"ID":"expire-old-backups","Status":"Enabled","Filter":{},"Expiration":{"Days":30},"NoncurrentVersionExpiration":{"NoncurrentDays":7}}]}' >/dev/null
 }
 
 # --- Site (primary|dr): workspace do Terraform + região + contexto do kubectl ---
