@@ -7,7 +7,7 @@ metadata:
   namespace: solidarytech
 data:
   AWS_REGION: us-east-1
-  AWS_SQS_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/solidarytech-primary-donations"
+  AWS_SQS_URL: "https://sqs.us-east-1.amazonaws.com/251809678448/solidarytech-primary-donations"
   AWS_DYNAMODB_TABLE: SolidaryTechVolunteers
   NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "true"
   NEW_RELIC_LOG: stdout
