@@ -79,6 +79,12 @@ variable "node_max" {
   default = 4
 }
 
+variable "node_max_pods" {
+  description = "Pods por nó com prefix delegation. 110 é o teto recomendado pela AWS para instâncias com menos de 30 vCPUs."
+  type        = number
+  default     = 110
+}
+
 variable "db_instance_class" {
   description = "Rightsizing: db.t3.micro atende o volume de uma ONG; escalar é 1 linha."
   type        = string

@@ -34,6 +34,7 @@ module "eks" {
   desired            = var.node_desired
   min                = var.node_min
   max                = var.node_max
+  max_pods           = var.node_max_pods
 }
 
 module "data" {

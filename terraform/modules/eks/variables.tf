@@ -9,3 +9,4 @@ variable "capacity_type" { type = string }
 variable "desired" { type = number }
 variable "min" { type = number }
 variable "max" { type = number }
+variable "max_pods" { type = number }

@@ -56,6 +56,28 @@ resource "aws_launch_template" "nodes" {
     tags          = { Name = "${var.name}-node" }
   }
 
+  # Densidade de pods: sem isso um t3.medium aceita só 17 pods (limite de IPs por ENI) e a stack
+  # (ArgoCD + Prometheus + Loki + New Relic + Velero + apps) não cabe em 2 nós ("Too many pods").
+  # Com prefix delegation no vpc-cni cada ENI recebe blocos /28; o kubelet precisa saber o novo teto.
+  # AL2023 (padrão do EKS >= 1.30): o EKS mescla este NodeConfig com o dele.
+  user_data = base64encode(<<-EOT
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="//"
+
+    --//
+    Content-Type: application/node.eks.aws
+
+    apiVersion: node.eks.aws/v1alpha1
+    kind: NodeConfig
+    spec:
+      kubelet:
+        config:
+          maxPods: ${var.max_pods}
+
+    --//--
+  EOT
+  )
+
   lifecycle { create_before_destroy = true }
 }
 
@@ -84,6 +106,9 @@ resource "aws_eks_node_group" "default" {
 
   labels = { role = "general" }
 
+  # nós só entram depois do vpc-cni com prefix delegation, senão nascem com o limite antigo de IPs
+  depends_on = [aws_eks_addon.vpc_cni]
+
   lifecycle {
     ignore_changes = [scaling_config[0].desired_size] # deixa o autoscaler mandar
   }
@@ -97,7 +122,12 @@ resource "aws_eks_node_group" "default" {
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "vpc-cni"
+  resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
+  # prefix delegation: t3.medium passa de 17 para 110 pods (ver launch template)
+  configuration_values = jsonencode({
+    env = { ENABLE_PREFIX_DELEGATION = "true", WARM_PREFIX_TARGET = "1" }
+  })
 }
 
 resource "aws_eks_addon" "kube_proxy" {
