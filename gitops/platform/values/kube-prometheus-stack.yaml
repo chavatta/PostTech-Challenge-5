@@ -40,4 +40,11 @@ grafana:
 kube-state-metrics:
   resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 128Mi } }
 prometheus-node-exporter:
-  resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+  # limite de CPU de 100m gerava CPUThrottlingHigh nos próprios node-exporters (picos de coleta a cada scrape)
+  resources: { requests: { cpu: 20m, memory: 32Mi }, limits: { cpu: 250m, memory: 64Mi } }
+# EKS: control plane é gerenciado pela AWS. Scheduler, controller-manager e etcd não são alcançáveis pelo
+# Prometheus do cluster; com os ServiceMonitors ligados, KubeSchedulerDown/KubeControllerManagerDown disparam
+# para sempre (alarme falso no vídeo e ruído para o AIOps). O apiserver continua monitorado.
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeEtcd: { enabled: false }
