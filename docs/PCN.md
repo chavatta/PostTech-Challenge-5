@@ -42,9 +42,10 @@ Garantir que **doações continuem sendo recebidas e registradas** mesmo diante 
 
 ## 5. Estratégia de DR adotada (as duas opções do enunciado)
 
-**Opção A — Backup cross-region (Velero):** `Schedule` horário do namespace `solidarytech` e diário da plataforma
-para o bucket S3 versionado/criptografado criado pelo Terraform. Restore testado pelo `08-dr-drill.sh restore`,
-que apaga o namespace e mede o RTO real.
+**Opção A — Backup cross-region (Velero):** `Schedule` horário do namespace `solidarytech` (`velero-solidarytech-hourly`,
+retenção 72 h) e diário da plataforma (`velero-platform-daily`, 30 dias) para o bucket S3 versionado/criptografado
+criado pelo Terraform. Os Schedules são ligados pelo `08-dr-setup.sh`, junto com o bucket real. Restore testado pelo
+`08-dr-drill.sh restore`, que pausa o ArgoCD, apaga o namespace, restaura só pelo Velero e mede o RTO real.
 
 **Opção B — Ativo-passivo (Terraform warm standby):** o mesmo código (`terraform/`) sobe um espelho em `us-west-2`
 com `terraform workspace select dr && terraform apply -var-file=environments/dr.tfvars`. Estado desejado das
@@ -54,7 +55,8 @@ Procedimento de ativação (falha regional):
 1. Declarar incidente Sev-1 (ITSM.md) e comunicar ONGs (template em ITSM.md).
 2. `scripts/02-terraform-apply.sh dr` (≈ 20 min).
 3. Restaurar RDS no DR a partir do snapshot copiado: `aws rds restore-db-instance-from-db-snapshot --region us-west-2 ...`; gravar a nova URL no SSM do site DR.
-4. `scripts/04-bootstrap-cluster.sh` com o kubeconfig do DR (ArgoCD sincroniza os 3 serviços).
+4. Bootstrap do GitOps no cluster do DR (ArgoCD sincroniza os 3 serviços). O `scripts/04-bootstrap-cluster.sh` fixa o
+   site primário de propósito (`use_site primary`); na ativação, rodá-lo com `use_site dr` no lugar.
 5. Apontar o DNS público para o novo NLB (TTL 60 s recomendado).
 6. Validar com o smoke test do script; encerrar incidente; post-mortem.
 

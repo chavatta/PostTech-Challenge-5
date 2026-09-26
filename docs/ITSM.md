@@ -47,9 +47,14 @@ Versão em imagem para o relatório: exportar este diagrama do Mermaid Live Edit
 ### runbook-donation-5xx
 1. Abrir New Relic → APM → `solidarytech-donation-service` → Errors: qual span falha (Postgres? SQS?).
 2. Loki: `{namespace="solidarytech", container="donation-service"} |= "Erro"`.
-3. Se banco: `kubectl -n solidarytech get pods`, status do RDS no console, `db-credentials` correto?
+3. Se banco: o erro no trace/Loki diz a causa. `relation "donations" does not exist` = schema alterado (migração/DDL
+   quebrada): desfazer a mudança no banco. No teste de caos isso é `scripts/06-sre-chaos.sh restore`; a tabela não
+   está no git, então o ArgoCD não corrige. Erro de conexão/autenticação: `kubectl -n solidarytech get pods`,
+   status do RDS no console, `db-credentials` correto?
 4. Se deploy recente: `git revert <sha>` na main → ArgoCD faz rollback em ~1 min. Alternativa imediata: `kubectl -n argocd` → history & rollback pela UI.
-5. Se SQS: doações continuam (POST retorna 201 mesmo com fila fora); verificar DLQ.
+5. Se SQS: doações continuam (POST retorna 201 mesmo com fila fora; log `Falha ao despachar evento SQS`), mas o envio
+   é feito antes da resposta e cada POST espera até o timeout de 2 s: a latência sobe (ver runbook-donation-latencia).
+   Verificar a fila e a DLQ.
 
 ### runbook-donation-latencia
 1. Dashboard SRE → painel Saturação: CPU perto do request? HPA no máximo? → subir `maxReplicas` no overlay.

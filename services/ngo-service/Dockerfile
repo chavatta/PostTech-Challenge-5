@@ -19,12 +19,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
-# Usuário sem privilégios: boa prática de segurança em containers (CIS Docker Benchmark 4.1)
-RUN addgroup --system app && adduser --system --ingroup app --no-create-home app
+# Usuário sem privilégios: boa prática de segurança em containers (CIS Docker Benchmark 4.1).
+# UID/GID fixos e USER numérico: com runAsNonRoot o kubelet só aceita usuário de imagem numérico
+# (nome como "app" dá CreateContainerConfigError). Os Deployments usam os mesmos 10001:10001.
+RUN groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app.py .
-USER app
+USER 10001:10001
 EXPOSE 8081
 # Healthcheck local: útil no docker-compose; no Kubernetes usamos liveness/readiness probes.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

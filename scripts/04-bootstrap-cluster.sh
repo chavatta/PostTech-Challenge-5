@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
 # 04 - Etapa 4: GitOps. Único momento em que se usa kubectl "diretamente", e só para bootstrap:
-#   1) Secrets (nunca vão para o git): credenciais do banco (lidas do SSM) e imagePullSecret opcional
+#   1) Secrets (nunca vão para o git): credenciais do banco (lidas do SSM) e imagePullSecret (só se o GHCR for privado)
 #   2) ConfigMap app-config renderizado a partir dos outputs do Terraform e COMMITADO (GitOps)
 #   3) Instala o ArgoCD e aplica o AppProject + a Application raiz (app of apps)
 # A partir daqui, todo deploy acontece via commit na main.
-# Pré-requisitos: scripts/02-terraform-apply.sh concluído; kubeconfig apontando para o cluster.
+# Pré-requisitos: scripts/02-terraform-apply.sh concluído (o kubectl é apontado para o primário aqui mesmo).
 # ------------------------------------------------------------------------------
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT_DIR"
@@ -14,16 +14,16 @@ cd "$ROOT_DIR"
 [ -n "${NEW_RELIC_LICENSE_KEY:-}" ] || fail "exporte NEW_RELIC_LICENSE_KEY antes da Etapa 4 (New Relic -> API keys -> INGEST - LICENSE)"
 ARGOCD_VERSION="${ARGOCD_VERSION:-stable}"
 
-step "Lendo outputs do Terraform" "os manifests não têm valores hardcoded: tudo vem do IaC"
-cd terraform; terraform workspace select primary >/dev/null
-REGION=$(terraform output -raw region)
+step "Lendo outputs do Terraform do site primário e apontando o kubectl para ele" \
+     "os manifests não têm valores hardcoded: tudo vem do IaC; e '02-terraform-apply.sh dr' pode ter deixado workspace e kubectl no DR"
+use_site primary   # workspace primary + REGION/AWS_REGION (todos os `aws` abaixo) + contexto solidarytech-primary
+cd terraform
 SQS_URL=$(terraform output -raw sqs_queue_url)
 SSM_NGO=$(terraform output -json db_url_ssm_parameters | python3 -c 'import sys,json;print(json.load(sys.stdin)["ngo_db"])')
 SSM_DON=$(terraform output -json db_url_ssm_parameters | python3 -c 'import sys,json;print(json.load(sys.stdin)["donation_db"])')
 cd "$ROOT_DIR"
-export AWS_DEFAULT_REGION="$REGION" AWS_REGION="$REGION"   # todos os `aws` abaixo usam a região do IaC
-kubectl get nodes >/dev/null || fail "kubectl não alcança o cluster (rode: $(cd terraform && terraform output -raw kubeconfig_command))"
-ok "região=$REGION fila=$SQS_URL"
+kubectl get nodes >/dev/null || fail "kubectl não alcança o cluster do contexto solidarytech-primary"
+ok "contexto=$(kubectl config current-context) região=$REGION fila=$SQS_URL"
 
 step "Namespace + Secret db-credentials (a partir do SSM SecureString)" \
      "a senha do RDS nunca passa pelo git nem por variável de ambiente do dev; sai do SSM direto para o Secret"
@@ -42,16 +42,46 @@ step "Secret newrelic-license (namespaces solidarytech e newrelic)" \
 ensure_newrelic_secret
 ok "secret newrelic-license criado"
 
-step "imagePullSecret para o GHCR (opcional)" \
-     "só é necessário se os pacotes GHCR continuarem privados; com token sem read:packages, pula"
-if gh auth status 2>/dev/null | grep -q "read:packages"; then
+step "Acesso às imagens do GHCR: pull anônimo ou imagePullSecret" \
+     "pacote privado sem credencial deixa os pods em ImagePullBackOff; melhor parar aqui, com a causa, do que no timeout do ArgoCD"
+# pull anônimo = o que o kubelet faz sem imagePullSecret: token anônimo + GET do manifest (index OCI ou Docker v2)
+ghcr_anon_pull() {  # $1 = ghcr.io/<dono>/<pacote>:<tag>; 0 = baixa sem credencial | 1 = pacote privado | 2 = tag não existe
+  local repo="${1#ghcr.io/}" tag tok
+  tag="${repo##*:}"; repo="${repo%:*}"
+  tok=$(curl -fs "https://ghcr.io/token?service=ghcr.io&scope=repository:$repo:pull" \
+        | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])' 2>/dev/null) || return 1
+  curl -fs -o /dev/null -H "Authorization: Bearer $tok" \
+    -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
+    "https://ghcr.io/v2/$repo/manifests/$tag" || return 2
+}
+# imagens e tag vêm do overlay de produção (o CI reescreve a tag a cada build), não de valor fixo no script
+IMAGES=$(awk '/^- name:/{if(img)print img":"tag; img=$3; tag="latest"} /^ *newName:/{img=$2} /^ *newTag:/{tag=$2}
+              END{if(img)print img":"tag}' gitops/overlays/production/kustomization.yaml | tr -d '"' | grep '^ghcr\.io/' || true)
+PRIVATE=""
+for IMG in $IMAGES; do
+  RC=0; ghcr_anon_pull "$IMG" || RC=$?
+  case $RC in
+    1) PRIVATE="$PRIVATE $IMG" ;;
+    2) fail "a tag de $IMG não existe no GHCR: o job build do CI publicou? (gh run list --workflow ci.yml)" ;;
+  esac
+done
+# só a conta ativa: é o token dela que `gh auth token` devolve (write:packages inclui read:packages)
+GH_SCOPES=$(gh auth status --active 2>&1 || true)
+if [ -z "$PRIVATE" ]; then
+  ok "imagens públicas (pull anônimo OK): imagePullSecret desnecessário"
+elif grep -Eq "(read|write):packages" <<<"$GH_SCOPES"; then
   kubectl -n solidarytech create secret docker-registry ghcr-pull \
     --docker-server=ghcr.io --docker-username="$(gh api user -q .login)" --docker-password="$(gh auth token)" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   kubectl -n solidarytech patch serviceaccount default -p '{"imagePullSecrets":[{"name":"ghcr-pull"}]}' >/dev/null
-  ok "imagePullSecret ghcr-pull configurado"
+  ok "pacotes privados: imagePullSecret ghcr-pull configurado com o token do gh (read:packages)"
 else
-  ok "pulado (pacotes GHCR devem estar públicos — ver ROTEIRO 3.5)"
+  echo "    pacotes privados:"
+  for IMG in $PRIVATE; do
+    P="${IMG#ghcr.io/}"; P="${P%:*}"; OWNER="${P%%/*}"; P="${P#*/}"
+    echo "      https://github.com/users/$OWNER/packages/container/${P//\//%2F}/settings"
+  done
+  fail "pacotes GHCR privados e o token do gh sem read:packages. Opção A: em cada link acima, Change visibility -> Public. Opção B: gh auth refresh -h github.com -s read:packages. Depois rode esta etapa de novo"
 fi
 
 step "Renderizando gitops/overlays/production/app-config.yaml e commitando" \
@@ -72,9 +102,9 @@ data:
   NEW_RELIC_LOG: stdout
   NEW_RELIC_LOG_LEVEL: info
 EOC
-git add gitops/overlays/production/app-config.yaml
-git diff --cached --quiet || { git commit -q -m "gitops: app-config renderizado do Terraform (site primary)"; git push -q origin main; }
-ok "app-config no git"
+# pull --rebase antes do push: o bot do CI commita na main depois de cada push (ver git_commit_push no lib.sh)
+git_commit_push "gitops: app-config renderizado do Terraform (site primary)" gitops/overlays/production/app-config.yaml
+ok "app-config no git (origin/main)"
 
 step "Instalando ArgoCD ($ARGOCD_VERSION)" "ferramenta de GitOps: observa o repositório e converge o cluster para o que está no git"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null

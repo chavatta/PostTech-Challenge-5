@@ -22,6 +22,10 @@ spec:
       # Segurança (Pod Security "restricted"): non-root, sem escalada, sem capabilities, FS read-only
       securityContext:
         runAsNonRoot: true
+        # UID numérico explícito: sem ele, imagem com USER por nome ("app", "nonroot") não prova ser non-root
+        # e o kubelet deixa o pod em CreateContainerConfigError. Mesmo UID/GID do USER do Dockerfile.
+        runAsUser: 10001
+        runAsGroup: 10001
         seccompProfile: { type: RuntimeDefault }
       topologySpreadConstraints:                         # espalha réplicas entre AZs/nós (resiliência)
         - maxSkew: 1

@@ -44,5 +44,7 @@ O New Relic passa a mostrar error budget e burn rate nativamente. Serve de segun
 
 ## 7. Distributed tracing
 APM → Distributed tracing → filtrar `service.name = solidarytech-donation-service`: um trace de `POST /donations`
-mostra `nginx (ingress)` → `donation-service` → `Postgres INSERT` → `SQS SendMessage`. O span do SQS aparece
-mesmo sendo assíncrono graças ao `txn.NewGoroutine()` no código.
+mostra `nginx (ingress)` → `donation-service` → `Postgres INSERT` → `SQS SendMessage`. O publish no SQS é feito
+antes de responder (síncrono, com timeout de 2 s), então o span `SQS SendMessage` fica dentro da transação de
+`POST /donations`. Numa goroutine ele não aparecia: a transação termina no retorno do handler e o agente descarta
+segmentos abertos depois disso. Para o consumidor da fila, o evento continua assíncrono.

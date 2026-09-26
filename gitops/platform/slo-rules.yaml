@@ -20,34 +20,36 @@ spec:
       interval: 30s
       rules:
         # --- Recording rules: SLIs em várias janelas (usadas pelo dashboard e pelos alertas) ---
+        # "or vector(0)" no numerador: a série status="500" só nasce no primeiro erro. Sem ela o numerador fica vazio
+        # e SLI, error budget e burn rate saem "No data" em vez de 100% / 0 enquanto todo o tráfego é 2xx.
         - record: sli:donation_availability:ratio_rate5m
           expr: |
             1 - (
-              sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[5m]))
+              (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[5m])) or vector(0))
               / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[5m])), 1e-9)
             )
         - record: sli:donation_availability:ratio_rate30m
           expr: |
             1 - (
-              sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[30m]))
+              (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[30m])) or vector(0))
               / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[30m])), 1e-9)
             )
         - record: sli:donation_availability:ratio_rate1h
           expr: |
             1 - (
-              sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[1h]))
+              (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[1h])) or vector(0))
               / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[1h])), 1e-9)
             )
         - record: sli:donation_availability:ratio_rate6h
           expr: |
             1 - (
-              sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[6h]))
+              (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[6h])) or vector(0))
               / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[6h])), 1e-9)
             )
         - record: sli:donation_availability:ratio_rate30d
           expr: |
             1 - (
-              sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[30d]))
+              (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[30d])) or vector(0))
               / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[30d])), 1e-9)
             )
         - record: sli:donation_latency_good:ratio_rate5m

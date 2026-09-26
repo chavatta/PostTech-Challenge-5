@@ -39,7 +39,7 @@ Tudo que foi alterado em relação ao repositório do professor, e o motivo:
 
 | Arquivo | Mudança | Motivo |
 |---|---|---|
-| `services/*/Dockerfile` | criados, multi-stage | imagens pequenas, non-root, sem toolchain em runtime |
+| `services/*/Dockerfile` | criados, multi-stage, `USER` numérico (65532 no Go distroless, 10001 nos Python) | imagens pequenas, non-root, sem toolchain em runtime. UID numérico porque, com `runAsNonRoot`, o kubelet recusa usuário por nome (`CreateContainerConfigError`); os Deployments fixam o mesmo `runAsUser`/`runAsGroup` |
 | `services/*/.dockerignore` | criados | não vazar `.env` nem lixo para a imagem |
 | `services/*/requirements.txt` | Flask 2.2→3.0, gunicorn 20→23, boto3 1.26→1.35 | versões antigas têm CVEs que o Trivy reprova (DevSecOps) |
 | `services/donation-service/go.mod` + `go.sum` | aws-sdk-go 1.51→1.55; `go.sum` gerado | o repo original não tinha `go.sum`, logo não buildava de forma reproduzível |
@@ -108,10 +108,11 @@ e provar que o mesmo código sobe uma região espelho (DR opção B) com um coma
 | `eks` | Cluster 1.31, node group t3.medium (2 a 4 nós), add-ons vpc-cni, coredns, kube-proxy, **ebs-csi** | Control plane e nós usam a `LabRole` (Academy não permite criar IAM). EBS CSI é necessário para volumes do Prometheus/Loki. Logs de audit ligados. |
 | `data` | RDS Postgres 16 `db.t3.micro` (backup 7 dias + PITR), DynamoDB on-demand com PITR, SQS + DLQ | Backups do RDS definem o RPO das doações. DLQ evita perder eventos de doação. Senha gerada e guardada no SSM (SecureString), nunca no repo. |
 | `registry` | 3 repositórios ECR (scan on push, tags imutáveis, lifecycle 10 imagens) + bucket S3 do Velero (versionado, criptografado, expira em 30 dias) | Scan on push = 2ª camada DevSecOps. Lifecycle = FinOps. |
-| root | `default_tags` no provider + AWS Budget opcional | **Toda** tag obrigatória (`Project`, `Environment`, `CostCenter`) é aplicada pelo provider: impossível criar recurso sem tag. |
+| root | `default_tags` no provider + AWS Budget opcional | **Toda** tag obrigatória (`Project`, `Environment`, `CostCenter`) é aplicada pelo provider: nenhum recurso do Terraform nasce sem tag. |
 
-Tags aplicadas em todos os recursos: `Project=SolidaryTech`, `Environment=Production`, `CostCenter=NGO-Core`,
-`ManagedBy=Terraform`, `Owner`, `Site=primary|dr`.
+Tags aplicadas em todos os recursos do Terraform: `Project=SolidaryTech`, `Environment=Production`, `CostCenter=NGO-Core`,
+`ManagedBy=Terraform`, `Owner`, `Site=primary|dr`. O que o EKS/K8s cria em runtime (nós, ENIs, volumes de PVC,
+snapshots do Velero) não passa pelo provider: o `07-finops-report.sh tags` lista esses recursos à parte (Etapa 7).
 
 ### 2.2 Credenciais do lab
 
@@ -153,6 +154,11 @@ scripts/02-terraform-apply.sh dr       # us-west-2, node group menor (warm stand
 Isso é o RTO de infraestrutura que está no PCN."* (No Academy a região secundária pode estar bloqueada;
 se estiver, a evidência é o `terraform plan` do workspace `dr`.)
 
+Depois deste comando o workspace do Terraform fica em `dr` e o kubectl no cluster do DR. Os scripts 04, 05,
+08-dr-setup, 08-dr-drill e 09 não dependem disso: chamam `use_site primary` (`scripts/lib.sh`), que seleciona o
+workspace, exporta a região e aponta o kubectl para o contexto `solidarytech-primary`. O 06 e o 07 usam o contexto
+corrente; se o DR subiu antes deles, rode `kubectl config use-context solidarytech-primary`.
+
 ### 2.5 Problemas conhecidos no Academy (vistos no primeiro apply real)
 
 | Sintoma | Causa | O que fazer |
@@ -173,6 +179,10 @@ scripts/02-terraform-destroy.sh        # ~15 min
 ```
 
 *"FinOps na prática: ambiente de lab não fica ligado à toa. Subir de novo custa um comando."*
+
+`scripts/02-terraform-destroy.sh dr` desmonta o espelho. Nos dois casos o script seleciona o site (workspace +
+contexto `solidarytech-<site>`), só remove os LoadBalancers do cluster daquele site (se ele já foi apagado, segue
+direto para o `terraform destroy`) e, depois do `dr`, devolve workspace e kubectl ao primário (se ele existir).
 
 ### Evidências para o relatório
 
@@ -264,7 +274,13 @@ Duas opções, escolha uma:
   `posttech-challenge-5/<serviço>` → Package settings → Change visibility → Public.
   Imagens não contêm segredo algum (variáveis vêm do Kubernetes), então não há risco.
 - **B:** manter privado e criar um `imagePullSecret` no cluster. Requer token com `read:packages`:
-  `gh auth refresh -s read:packages` e depois o script da Etapa 4 cria o secret automaticamente.
+  `gh auth refresh -h github.com -s read:packages` e depois o script da Etapa 4 cria o secret automaticamente.
+
+A Etapa 4 confere isso antes de instalar o ArgoCD: lê as imagens e a tag do overlay de produção e tenta o pull
+anônimo no GHCR (o mesmo que o kubelet faz sem credencial). Públicas: segue sem secret. Privadas com o `gh`
+tendo `read:packages`: cria o `ghcr-pull`. Privadas sem credencial: para, imprime o link de settings de cada
+pacote e as duas opções acima (em vez de os pods ficarem em `ImagePullBackOff`). Tag inexistente: para e aponta
+para o build do CI.
 
 *Falar no vídeo:* "Imagem pública não é problema: ela não carrega configuração nem credencial.
 Tudo sensível entra em runtime via Secret do Kubernetes."
@@ -297,7 +313,7 @@ Tudo sensível entra em runtime via Secret do Kubernetes."
 | `gitops/base/` | manifests dos 3 serviços: Deployment (requests/limits, probes, securityContext restrito, spread entre AZs), Service, HPA, PDB, ServiceMonitor; Ingress; NetworkPolicy; Job PreSync que cria bancos/schemas |
 | `gitops/overlays/production/` | kustomize: **tags de imagem** (o CI reescreve com o SHA) + ConfigMap `app-config` (renderizado do Terraform) |
 | `gitops/argocd/` | AppProject, Application raiz (**app of apps**) e uma Application por componente com *sync waves* |
-| `gitops/platform/` | values dos charts (ingress-nginx, metrics-server, kube-prometheus-stack, loki, newrelic, velero), regras de SLO, dashboard, schedules do Velero |
+| `gitops/platform/` | values dos charts (ingress-nginx, metrics-server, kube-prometheus-stack, loki, newrelic, velero), regras de SLO, dashboard. Os Schedules do Velero ficam em `values/velero.yaml.tpl` e só entram na Etapa 8, junto com o bucket real |
 
 Elo CI → CD: job `update-gitops` (`.github/workflows/ci.yml`) roda `kustomize edit set image` e commita `[skip ci]`.
 O ArgoCD detecta e faz o rollout. Histórico de deploy = `git log gitops/overlays/production`.
@@ -311,10 +327,11 @@ scripts/04-bootstrap-cluster.sh      # ~10 min
 
 | Passo | Por quê | Falar no vídeo |
 |---|---|---|
-| Lê outputs do Terraform | zero valor hardcoded | "A URL da fila vem do IaC." |
+| `use_site primary` + lê outputs do Terraform | zero valor hardcoded; e o `02-terraform-apply.sh dr` pode ter deixado workspace e kubectl no DR | "A URL da fila vem do IaC." |
 | Secret `db-credentials` a partir do SSM | senha nunca passa por git nem pelo dev | "SecureString → Secret, direto." |
 | Secret `newrelic-license` a partir do shell | o New Relic é instalado nesta etapa e precisa da licença antes | "Licença do shell para o cluster, nunca para o git." |
-| Renderiza e **commita** `app-config.yaml` | configuração não sensível é GitOps | |
+| Confere o acesso às imagens do GHCR (pull anônimo ou `imagePullSecret`) | pacote privado sem credencial = `ImagePullBackOff`; melhor parar aqui, com a causa (ver 3.5) | |
+| Renderiza e **commita** `app-config.yaml` | configuração não sensível é GitOps. O push passa por `git_commit_push` (`lib.sh`): `pull --rebase` antes, porque o job `update-gitops` do CI commita a tag na main depois de cada push | |
 | Instala ArgoCD + credencial HTTPS do repo | qualquer contribuidor consegue subir o ambiente | "O ArgoCD usa o token de quem roda o script, só para ler o repositório." |
 | `kubectl apply` do AppProject e da root app | **último apply manual do projeto** | "Daqui pra frente é só git." |
 | Aguarda Applications Healthy; smoke test pelo NLB | prova ponta a ponta | |
@@ -325,14 +342,19 @@ scripts/04-bootstrap-cluster.sh      # ~10 min
 ### 4.3 Demonstrações
 
 ```bash
-scripts/04-gitops-demo.sh selfheal      # kubectl scale manual é revertido pelo ArgoCD
+scripts/04-gitops-demo.sh selfheal      # patch manual no HPA (maxReplicas 3 -> 10) é revertido pelo selfHeal do ArgoCD
 scripts/04-gitops-demo.sh rollout       # deploy disparado por commit
 scripts/04-gitops-demo.sh rightsizing   # kubectl top vs requests (evidência FinOps)
 ```
 
 ### Evidências
 - Print da UI do ArgoCD (Applications Synced/Healthy) e do `git log` com commits `cd: imagens -> <sha>`.
-- Print do selfHeal revertendo. Print de `kubectl top` ao lado dos requests.
+- Print do selfHeal revertendo (o script imprime `maxReplicas` e o `sync.status` do app a cada 2 s, o tempo até o
+  revert e o último sync com `automated=true`). Print de `kubectl top` ao lado dos requests.
+
+O selfheal não usa `kubectl scale`: o Application ignora `/spec/replicas` (quem manda nas réplicas é o HPA), então
+o scale seria desfeito pelo HPA e não pelo ArgoCD. O `maxReplicas` do HPA não é tocado por nenhum controlador:
+se ele volta ao valor do git, foi o selfHeal.
 
 ---
 
@@ -348,6 +370,7 @@ scripts/04-gitops-demo.sh rightsizing   # kubectl top vs requests (evidência Fi
 | `services/*/Dockerfile` (Python) | `newrelic-admin run-program gunicorn --workers 1 --threads 8` | agente APM; 1 worker = métricas consistentes por pod, escala via HPA |
 | `donation-service/metrics.go` | middleware `http_requests_total` / `http_request_duration_seconds` | base dos SLIs |
 | `donation-service/main.go` | `newrelic.WrapHandleFunc`, `nrawssdk` no SQS, contexto por request | trace: ingress → handler → Postgres → SQS |
+| `donation-service/main.go` | publish no SQS **antes** do `201`, com timeout de 2 s (antes era numa goroutine) | a transação do New Relic termina no retorno do handler e o agente descartava o span SQS aberto depois. Custa ~10-30 ms, dentro do SLO de 250 ms; se a fila cair, só loga e responde `201` |
 | `donation-service/main.go`, `go.mod` | **pgx v4 → v5** com tracer `nrpgx5`; `SetMaxOpenConns(10)` | o integrador `nrpgx` (v4) arrastava `jackc/pgx` v3 com 2 CVEs HIGH; v5 corrige e é a versão suportada |
 
 Sem `NEW_RELIC_LICENSE_KEY` o agente vira no-op: o código é o mesmo em dev e prod.
@@ -356,7 +379,8 @@ Sem `NEW_RELIC_LICENSE_KEY` o agente vira no-op: o código é o mesmo em dev e p
 ```bash
 scripts/05-observability.sh   # usa a mesma NEW_RELIC_LICENSE_KEY da Etapa 4
 ```
-Confere o Secret (criado na Etapa 4), reinicia os serviços, força sync do `nri-bundle` e gera 2 min de tráfego.
+Aponta para o site primário (`use_site primary`), confere o Secret (criado na Etapa 4), reinicia os serviços,
+força sync do `nri-bundle` e gera 2 min de tráfego.
 
 ### 5.3 Mostrar
 - Grafana (`port-forward` impresso pelo script) → dashboard "SRE — donation-service SLOs & Error Budget".
@@ -371,19 +395,40 @@ Confere o Secret (criado na Etapa 4), reinicia os serviços, força sync do `nri
 Definições formais: `docs/SRE.md`. Regras: `gitops/platform/slo-rules.yaml`. Dashboard: `gitops/platform/dashboards/`.
 
 ```bash
-scripts/06-sre-chaos.sh errors   # injeta falha de banco 3 min → alerta burn rate → mitigação pelo runbook → MTTR medido
+scripts/06-sre-chaos.sh errors   # quebra o banco → tráfego até o alerta FIRING → mitigação pelo runbook → MTTD e MTTR
 scripts/06-sre-chaos.sh kill     # mata pods → auto healing sem perder /health
-scripts/06-sre-chaos.sh load     # pico → HPA escala
+scripts/06-sre-chaos.sh load     # pico direto no Service → HPA escala
+scripts/06-sre-chaos.sh restore  # só se um "errors" interrompido não conseguiu desfazer a falha
 ```
+
+Como o `errors` funciona:
+1. Abre um port-forward próprio do Prometheus (`localhost:19090`, não briga com o 9090 da Etapa 5) e confere que a
+   regra `DonationAvailabilityBurnRateCritical` está carregada e o alerta não está `firing`.
+2. Injeta a falha: `ALTER TABLE donations RENAME TO donations_chaos` no RDS, num pod `psql` efêmero com o usuário
+   da aplicação (simula migração/DDL quebrada). `POST`/`GET /donations` passam a dar 500 na hora; o `/health` não
+   toca no banco, então os pods seguem Ready. (NetworkPolicy não serve: políticas só somam permissões.)
+3. Gera tráfego com erro e consulta o alerta até ele virar `firing` (pending → firing após o `for: 2m`; desiste
+   em 10 min). Imprime a detecção (MTTD).
+4. Mitiga pelo runbook: devolve o nome da tabela (se um sync do ArgoCD recriou `donations` vazia no meio, as
+   linhas gravadas nela são copiadas antes) e espera o `POST` voltar a `201`. Imprime
+   `MTTR = detecção + correção`. O alerta resolve sozinho quando a janela de 5 min deixar de conter os erros.
+
+Da injeção até a recuperação nenhum passo pausa, mesmo com `PAUSE=1`: a pausa da gravação não entra no MTTD/MTTR.
+Qualquer saída (erro, Ctrl+C) desfaz a falha; se nem isso funcionar, o script manda rodar `restore`.
+
+O `load` roda o `hey` no namespace `ingress-nginx` (a NetworkPolicy `backend-default` aceita tráfego vindo de lá) e
+bate direto em `donation-service.solidarytech`: o Ingress tem `limit-rps: 50` por IP, que devolveria 503 e seguraria
+a carga antes do pod. O pod do gerador usa um `securityContext` compatível com o Pod Security `restricted`.
 
 | Falar no vídeo |
 |---|
 | "Dois SLIs das Golden Metrics: disponibilidade 99,9 % e latência 99 % abaixo de 250 ms. Error budget de 43 minutos por mês." |
 | "O alerta não olha um limiar fixo: olha a velocidade de consumo do budget em duas janelas. 14× em 1 h acorda alguém; 6× em 6 h abre ticket." |
-| "MTTR: detecção em 2 min pelo alerta, diagnóstico pelo trace, correção pelo ArgoCD. Medimos <X> s no teste." |
+| "MTTR = detecção + correção. O alerta detectou em <X> s (o `for: 2m` segura falso positivo), o trace e o Loki mostram `relation "donations" does not exist` e a correção seguiu o runbook em <Y> s. A tabela não está no git, então não é o ArgoCD que desfaz." |
 
 ### Evidências
-- Prints do dashboard antes/durante/depois do caos; print do alerta em Prometheus → Alerts; valor do MTTR.
+- Prints do dashboard antes/durante/depois do caos; print do alerta em Prometheus → Alerts; linha do script com
+  MTTD e MTTR (detecção + correção).
 
 ---
 
@@ -392,13 +437,22 @@ scripts/06-sre-chaos.sh load     # pico → HPA escala
 Documento: `docs/FINOPS.md` (tags, rightsizing, forecast ≈ US$ 210/mês, recomendação Spot).
 
 ```bash
-scripts/07-finops-report.sh tags    # inventário por tag + auditoria de recursos sem tag
+scripts/07-finops-report.sh tags    # inventário por tag + auditoria de recursos sem tag (IaC e runtime do EKS/K8s)
 scripts/07-finops-report.sh usage   # kubectl top vs requests/limits
 scripts/07-finops-report.sh cost    # Cost Explorer por tag (pode ser negado no Academy)
 ```
 
-Falar: "Cada recurso carrega Project, Environment e CostCenter porque o provider Terraform injeta as tags.
-Rightsizing veio de medição real. Spot nos nós corta 70 % do EC2 sem mudar código."
+A auditoria tem duas listas, a partir de uma única chamada ao `get-resources`:
+- **Recursos do Terraform/scripts sem `Project`** (deveria ser zero): o que não tem nenhuma tag do EKS/K8s.
+- **Criados em runtime pelo EKS/K8s**: instâncias e launch template do node group, ENIs do VPC CNI, volumes de PVC,
+  snapshots do Velero, SG `eks-cluster-sg-*`, LBs de Service. Não passam pelo `default_tags`; cada linha traz o
+  dono tirado das próprias tags (`cluster=`, `nodegroup=`, `pvc=`, `backup=`, `service=`).
+
+Se a API falhar (credencial vencida), o script para com erro em vez de imprimir "nenhum".
+
+Falar: "Tudo que o Terraform cria carrega Project, Environment e CostCenter porque o provider injeta as tags. O que o
+EKS cria sozinho aparece à parte, com o dono. Rightsizing veio de medição real. Spot nos nós corta 70 % do EC2 sem
+mudar código."
 
 ---
 
@@ -407,12 +461,27 @@ Rightsizing veio de medição real. Spot nos nós corta 70 % do EC2 sem mudar c�
 Documento executivo: `docs/PCN.md` (RPO doações 5 min, RTO regional 60 min).
 
 ```bash
-scripts/08-dr-setup.sh            # renderiza values do Velero com o bucket do Terraform e commita
-scripts/08-dr-drill.sh backup     # backup sob demanda + objetos no S3
-scripts/08-dr-drill.sh restore    # APAGA o namespace e restaura; imprime o RTO medido
-scripts/08-dr-drill.sh rds        # snapshot RDS + cópia cross-region
+scripts/08-dr-setup.sh            # renderiza values do Velero (bucket do Terraform + Schedules), commita e espera o BSL Available
+scripts/08-dr-drill.sh backup     # backup sob demanda (falha se não ficar Completed) + objetos no S3
+scripts/08-dr-drill.sh restore    # pausa o ArgoCD, APAGA o namespace e restaura pelo Velero; imprime o RTO medido
+scripts/08-dr-drill.sh rds        # snapshot RDS + cópia cross-region (espera ficar available, até 30 min)
 scripts/02-terraform-apply.sh dr  # (opção B) sobe o espelho em us-west-2 — ou mostrar só o plan
 ```
+
+- **`08-dr-setup.sh`**: até aqui o `velero.yaml` do git tem um bucket placeholder e nenhum Schedule (com o BSL
+  `Unavailable`, cada execução viraria um backup `FailedValidation`). O script renderiza o `velero.yaml.tpl` com o
+  bucket real e os Schedules `velero-solidarytech-hourly` (namespace `solidarytech`, 72 h) e `velero-platform-daily`
+  (plataforma, 30 dias), commita com `git_commit_push` e espera o BSL `Available` com o bucket novo e o app `velero`
+  `Synced`. Depois apaga backups `FailedValidation` que tenham sobrado.
+- **`08-dr-drill.sh restore`**: pausa o auto-sync do app `root` **e** do `solidarytech` (a root tem selfHeal e
+  desfaria a pausa da filha em segundos), apaga o namespace, restaura só `solidarytech` do último backup
+  `Completed`, confere o restore `Completed` e a API respondendo, mostra o label `velero.io/restore-name` nos
+  objetos (quem recriou foi o Velero) e religa o ArgoCD com o `syncPolicy` salvo. Se algo falhar ou houver Ctrl+C,
+  o ArgoCD é religado na saída.
+- **`08-dr-drill.sh rds`**: a região de destino vem de `environments/dr.tfvars` (ou `DR_REGION`). O RDS é
+  criptografado, então a cópia usa a chave `aws/rds` da região de destino. Se a espera de 30 min acabar antes, o
+  script mostra status e progresso e segue: a cópia continua sozinha na AWS.
+- Os dois scripts começam com `use_site primary`, então funcionam mesmo depois do `02-terraform-apply.sh dr`.
 
 Falar: "Duas camadas: Velero guarda o estado do cluster no S3 a cada hora; o Terraform sobe a região espelho
 com um comando. O banco tem PITR de 5 minutos e snapshot copiado para a outra região."
@@ -425,7 +494,7 @@ com um comando. O banco tem PITR de 5 minutos e snapshot copiado para a outra re
 - `docs/AIOPS.md`: passos no New Relic (Anomaly detection, Decisions, Workflows, Service Levels) e o que gravar.
 - `docs/RELATORIO.md`: modelo do PDF com todos os campos e prints exigidos.
 - `docs/VIDEO.md`: roteiro de 20 min com tempos e falas.
-- `scripts/09-evidencias.sh`: coleta outputs textuais para anexar.
+- `scripts/09-evidencias.sh`: coleta outputs textuais para anexar (sempre do site primário: começa com `use_site primary`).
 
 Ordem sugerida de gravação: Etapas 2 (plan), 3, 4, 5, 6, 7, 8, 9 — o roteiro de tempo está em `docs/VIDEO.md`.
 Ao final da sessão: `scripts/02-terraform-destroy.sh`.

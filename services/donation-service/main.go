@@ -30,6 +30,10 @@ type Donation struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// sqsSendTimeout limita o envio síncrono ao SQS. Cobre a 1ª chamada (credenciais via IMDS) e os retries
+// do SDK, sem deixar o POST pendurado se a fila estiver fora: a falha só é logada e a doação responde 201.
+const sqsSendTimeout = 2 * time.Second
+
 type App struct {
 	DB          *sql.DB
 	SqsSvc      *sqs.SQS
@@ -130,9 +134,14 @@ func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if a.SqsSvc != nil {
-			// txn.NewGoroutine é nil-safe; mantém o envio assíncrono dentro do mesmo trace.
-			txn := newrelic.FromContext(r.Context())
-			go a.sendNotificationEvent(newrelic.NewContext(context.Background(), txn.NewGoroutine()), d)
+			// Envio síncrono, antes de responder: o WrapHandleFunc encerra a transação do New Relic no retorno
+			// do handler e o agente descarta segmentos abertos depois disso. Numa goroutine o span SQS nunca
+			// aparecia no trace. O custo é ~10-30 ms (SQS na mesma região), dentro do SLO de 250 ms.
+			// WithoutCancel: a doação já foi gravada, então o evento sai mesmo se o cliente desconectar,
+			// e a transação continua no contexto para o nrawssdk.
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), sqsSendTimeout)
+			a.sendNotificationEvent(ctx, d)
+			cancel()
 		}
 
 		w.WriteHeader(http.StatusCreated)

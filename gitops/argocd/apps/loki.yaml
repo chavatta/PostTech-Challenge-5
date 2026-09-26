@@ -23,3 +23,13 @@ spec:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true, ServerSideApply=true]
     retry: { limit: 5, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+  # O apiserver completa o volumeClaimTemplates do StatefulSet (apiVersion, kind, volumeMode, status) e, com
+  # ServerSideApply, o diff trata essa lista como atômica: o loki ficaria OutOfSync para sempre (argo-cd #11143)
+  # e a Etapa 4 esperaria todos os apps Synced até dar timeout. O campo é imutável no Kubernetes, então ignorar
+  # no diff não esconde nada que um sync pudesse corrigir. Sem RespectIgnoreDifferences de propósito: o SSA
+  # continua enviando o template do git e o argocd-controller segue dono do campo.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: loki
+      jsonPointers: [/spec/volumeClaimTemplates]

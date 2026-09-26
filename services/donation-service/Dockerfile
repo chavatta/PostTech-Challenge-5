@@ -16,6 +16,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/donatio
 FROM gcr.io/distroless/static-debian12:nonroot AS runtime
 ENV PORT=8082
 COPY --from=builder /out/donation-service /donation-service
-USER nonroot:nonroot
+# 65532 = usuário "nonroot" do distroless. Numérico de propósito: com runAsNonRoot o kubelet recusa
+# usuário por nome ("nonroot:nonroot" daria CreateContainerConfigError). Mesmo UID/GID do Deployment.
+USER 65532:65532
 EXPOSE 8082
 ENTRYPOINT ["/donation-service"]

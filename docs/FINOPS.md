@@ -3,7 +3,7 @@
 ## 1. Estratégia de tagging (implementada no Terraform)
 
 Toda tag obrigatória é aplicada via `default_tags` do provider AWS (`terraform/providers.tf`).
-Não existe caminho para criar recurso sem tag: o provider injeta em **todos** os recursos que suportam tags.
+Nada que o Terraform cria nasce sem tag: o provider injeta em **todos** os recursos dele que suportam tags.
 
 | Tag | Valor | Uso |
 |---|---|---|
@@ -17,8 +17,14 @@ Não existe caminho para criar recurso sem tag: o provider injeta em **todos** o
 
 Recursos criados pelo Kubernetes (NLB do ingress) recebem tags pela annotation
 `service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags` (`gitops/platform/values/ingress-nginx.yaml`).
+Os demais que o EKS/K8s cria em runtime não passam pelo provider: instâncias e launch template do node group, ENIs
+do VPC CNI, volumes EBS de PVC, snapshots do Velero e o SG `eks-cluster-sg-*` nascem só com as tags do próprio
+EKS/K8s (`eks:cluster-name`, `kubernetes.io/cluster/<nome>`, `ebs.csi.aws.com/*`, `velero.io/*`...).
+Próximo passo: propagar as tags para eles (`tag_specifications` no launch template, `extraVolumeTags` no EBS CSI).
 
-Evidências: `scripts/07-finops-report.sh tags` (inventário por tag e auditoria de recursos sem tag) e a seção
+Evidências: `scripts/07-finops-report.sh tags` (inventário por `CostCenter`; auditoria dos recursos do Terraform sem
+`Project`, que deve dar zero; e a lista à parte do que o EKS/K8s criou em runtime, com o dono tirado das tags:
+cluster, nodegroup, PVC, backup, service) e a seção
 "Tags" de qualquer recurso no console. Cost allocation tags precisam ser ativadas uma vez em
 Billing → Cost allocation tags (`Project`, `CostCenter`, `Site`) para aparecerem no Cost Explorer.
 

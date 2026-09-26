@@ -57,6 +57,56 @@ ensure_velero_bucket() {  # $1 = nome do bucket
   aws s3api put-bucket-lifecycle-configuration --bucket "$1" --lifecycle-configuration '{"Rules":[{"ID":"expire-old-backups","Status":"Enabled","Filter":{},"Expiration":{"Days":30},"NoncurrentVersionExpiration":{"NoncurrentDays":7}}]}'
 }
 
+# --- Site (primary|dr): workspace do Terraform + região + contexto do kubectl ---
+# `02-terraform-apply.sh dr` deixa o workspace em dr e o kubectl no cluster do DR; nenhuma etapa seguinte pode confiar
+# no estado corrente. use_site fixa os três de uma vez, de qualquer diretório (terraform -chdir: o cwd não muda).
+# Workspace inexistente aborta (fail). Cluster inexistente só retorna 1 com aviso: quem aceita isso (destroy) usa `use_site x || ...`;
+# nos demais scripts o set -e interrompe ali.
+use_site() {  # $1 = primary|dr
+  local site="${1:-}" tf="$ROOT_DIR/terraform" region cluster
+  case "$site" in primary|dr) ;; *) fail "use_site: site inválido '$site' (use primary ou dr)" ;; esac
+  terraform -chdir="$tf" workspace select "$site" >/dev/null \
+    || fail "workspace terraform '$site' não existe: rode scripts/02-terraform-apply.sh $site"
+  # sem state (nunca aplicado ou já destruído) o output sai vazio (e com rc 0): cai no tfvars do site, a mesma fonte do Terraform
+  region=$(terraform -chdir="$tf" output -raw region 2>/dev/null || true)
+  [ -n "$region" ] || region=$(awk -F'"' '/^region/{print $2}' "$tf/environments/$site.tfvars" 2>/dev/null || true)
+  [ -n "$region" ] || fail "região do site $site não encontrada (nem output region, nem environments/$site.tfvars)"
+  export REGION="$region" AWS_REGION="$region" AWS_DEFAULT_REGION="$region"
+  cluster=$(terraform -chdir="$tf" output -raw cluster_name 2>/dev/null || true)
+  # --alias estável: o contexto aparece como solidarytech-<site> (e não como o ARN), igual em todos os scripts e no vídeo
+  if [ -z "$cluster" ] || ! aws eks update-kubeconfig --region "$region" --name "$cluster" --alias "solidarytech-$site" >/dev/null; then
+    printf '\033[1;33m    ! cluster do site %s (%s) não encontrado (ainda não subiu ou já foi destruído): kubectl segue no contexto anterior\033[0m\n' \
+      "$site" "$region" >&2
+    return 1
+  fi
+}
+
+# --- Commit + push na main (GitOps) ---
+# O job update-gitops do CI commita a nova tag na main ~3 min depois de cada push: sem pull --rebase, o push seguinte do
+# roteiro é rejeitado (fetch first). Idempotente: sem mudança não commita, mas SEMPRE sincroniza e faz push, para entregar
+# também um commit que ficou só local numa execução anterior que falhou no push.
+git_commit_push() {  # $1 = mensagem | $2... = caminhos (relativos à raiz do repo)
+  local msg="$1" r="$ROOT_DIR" i out; shift
+  # o ArgoCD observa a main; commitar em outra branch e dar push na main não entregaria nada
+  [ "$(git -C "$r" branch --show-current)" = main ] || fail "git_commit_push: faça checkout da main (o ArgoCD observa a main)"
+  git -C "$r" add -- "$@"
+  # pathspec no commit: só estes arquivos entram, mesmo que haja outras coisas no stage
+  git -C "$r" diff --cached --quiet -- "$@" || git -C "$r" commit -q -m "$msg" -- "$@"
+  for i in 1 2 3; do
+    # --autostash: alteração local não commitada (de outro arquivo) não pode travar o rebase; saída só aparece se falhar
+    out=$(GIT_TERMINAL_PROMPT=0 git -C "$r" pull -q --rebase --autostash origin main 2>&1) \
+      || { printf '%s\n' "$out" >&2; git -C "$r" rebase --abort >/dev/null 2>&1 || true
+           fail "git pull --rebase falhou (conflito ou rede): resolva com 'git status' e rode de novo"; }
+    out=$(GIT_TERMINAL_PROMPT=0 git -C "$r" push -q origin main 2>&1) && return 0
+    case "$out" in  # só repete quando a main andou no remoto; recusa por permissão/proteção de branch falha na hora
+      *"(fetch first)"*|*"(non-fast-forward)"*|*"cannot lock ref"*|*"failed to update ref"*|*"incorrect old value"*)
+        printf '    push rejeitado: o bot do CI commitou na main entre o pull e o push; sincronizando de novo (%s/3)\n' "$i" ;;
+      *) printf '%s\n' "$out" >&2; fail "git push falhou por outro motivo (acesso de escrita/rede): veja acima" ;;
+    esac
+  done
+  fail "git push rejeitado 3 vezes seguidas: confira 'git log origin/main' e rode de novo"
+}
+
 # --- Licença New Relic ---
 # Secret criado ANTES de o ArgoCD instalar o nri-bundle (Etapa 4); a Etapa 5 só reaproveita. Idempotente.
 ensure_newrelic_secret() {

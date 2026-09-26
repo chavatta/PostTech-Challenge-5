@@ -16,11 +16,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
-RUN addgroup --system app && adduser --system --ingroup app --no-create-home app
+# UID/GID fixos e USER numérico: runAsNonRoot só aceita usuário numérico (mesmo 10001:10001 do Deployment).
+RUN groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app.py .
-USER app
+USER 10001:10001
 EXPOSE 8083
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8083/health',timeout=2).status==200 else 1)"

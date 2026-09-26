@@ -66,13 +66,16 @@ MTTR = detectar + diagnosticar + corrigir + verificar. Cada peça ataca uma parc
 
 | Fase | Sem a stack | Com a stack | Ganho |
 |---|---|---|---|
-| **Detectar** | Doador reclama por e-mail (horas) | Burn-rate alert em ≤ 2 min; New Relic Applied Intelligence detecta anomalia de latência/throughput antes do limiar (AIOps) | horas → minutos |
+| **Detectar** | Doador reclama por e-mail (horas) | Burn-rate alert em ~2-3 min (`for: 2m` depois de a janela de 5m passar do limiar); New Relic Applied Intelligence detecta anomalia de latência/throughput antes do limiar (AIOps) | horas → minutos |
 | **Diagnosticar** | SSH no servidor, `grep` em logs | Trace distribuído no New Relic mostra *qual span* falhou (RDS? SQS?); Loki correlaciona logs do pod pelo mesmo intervalo; dashboard mostra saturação | dezenas de min → poucos min |
 | **Corrigir** | Alguém edita configuração à mão | `git revert` + ArgoCD faz rollout em ~1 min; selfHeal desfaz mudanças manuais; HPA/liveness/PDB corrigem sozinhos falhas de pod | manual → automático |
 | **Verificar** | "Parece que voltou" | SLI 5m volta acima do SLO no dashboard; alerta resolve sozinho | subjetivo → objetivo |
 
-Evidência prática: `scripts/06-sre-chaos.sh errors` injeta uma falha de banco, mostra o alerta disparando
-mede o tempo até o serviço voltar após a mitigação pelo runbook, e o alerta resolve sozinho. Anotar o valor medido na seção SRE do relatório.
+Evidência prática: `scripts/06-sre-chaos.sh errors` injeta uma falha de banco (renomeia a tabela `donations`, como
+uma migração quebrada), gera tráfego até o alerta `DonationAvailabilityBurnRateCritical` ficar `firing` e mede a
+detecção (MTTD). Em seguida mitiga pelo runbook e imprime `MTTR = detecção + correção` quando o `POST /donations`
+volta a `201`. O alerta resolve sozinho quando a janela de 5 min deixa de conter os erros. Anotar os dois valores na
+seção SRE do relatório.
 
 Automações que atuam sem humano (auto healing): liveness/readiness probes, `RollingUpdate maxUnavailable=0`,
 HPA, PodDisruptionBudget, `topologySpreadConstraints` entre AZs, ArgoCD `selfHeal`+`prune`, DLQ no SQS.

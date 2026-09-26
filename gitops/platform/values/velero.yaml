@@ -1,4 +1,6 @@
-# Template renderizado por scripts/08-dr-setup.sh (substitui solidarytech-primary-velero-000000000000 e us-east-1).
+# Placeholder até a Etapa 8: scripts/08-dr-setup.sh sobrescreve este arquivo renderizando velero.yaml.tpl
+# (bucket real do Terraform + Schedules). Aqui NÃO há schedules: com este bucket inexistente o BSL fica
+# Unavailable e cada execução de um Schedule viraria um Backup FailedValidation.
 # Sem IRSA no Academy: o Velero usa as credenciais da LabRole do nó (credentials.useSecret=false).
 initContainers:
   - name: velero-plugin-for-aws

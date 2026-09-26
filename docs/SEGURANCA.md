@@ -42,9 +42,10 @@ Todas decorrem de duas restrições do AWS Academy Learner Lab, ou de FinOps no 
 ## Postura de runtime (implementada em `gitops/base`)
 
 - Namespace com Pod Security Standard **restricted** (enforce).
-- Containers non-root, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities: drop ALL`, seccomp RuntimeDefault (inclusive no Job de init do banco).
+- Containers non-root com UID numérico fixo no `securityContext` (65532 no Go distroless, 10001 nos Python, 70 no Job de init do banco), igual ao `USER` da imagem: com `runAsNonRoot` o kubelet recusa usuário por nome. Também `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities: drop ALL`, seccomp RuntimeDefault (inclusive no Job de init do banco).
 - NetworkPolicy `backend-default`: ingress só do ingress-nginx e do Prometheus; egress só DNS, RDS (VPC), HTTPS e IMDS.
-- Ingress com rate limit (50 rps) e body máximo 1 MB.
+- Ingress com rate limit (50 rps por IP de origem, em cada réplica do controller) e body máximo 1 MB. Por isso o teste
+  de carga (`06-sre-chaos.sh load`) bate direto no Service interno, e não no Ingress.
 - Secrets (`db-credentials`, `newrelic-license`) criados por script a partir do SSM / variável de ambiente; nunca no git.
 - ArgoCD com AppProject restrito às fontes conhecidas e credencial HTTPS do contribuidor que sobe o ambiente (ou token dedicado via ARGOCD_REPO_TOKEN).
 - Trivy `config` também varre `gitops/` no `03-ci-check.sh` (pegou `readOnlyRootFilesystem` faltando no Job).

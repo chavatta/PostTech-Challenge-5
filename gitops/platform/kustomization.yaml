@@ -1,8 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# Schedules do Velero não ficam aqui: vão em values/velero.yaml.tpl e só entram com o bucket real (Etapa 8).
 resources:
   - slo-rules.yaml
-  - velero-schedules.yaml
 configMapGenerator:
   - name: grafana-dashboard-sre
     namespace: monitoring

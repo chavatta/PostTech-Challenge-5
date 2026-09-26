@@ -6,7 +6,10 @@ metadata:
   name: solidarytech
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 1m
-    nginx.ingress.kubernetes.io/limit-rps: "50"          # proteção básica contra abuso
+    # Proteção básica contra abuso: 50 req/s por IP de origem em cada réplica do controller (burst 5x, excedente = 503).
+    # Por isso o teste de carga (scripts/06-sre-chaos.sh load) bate direto no Service interno, e não aqui.
+    # Não usar limit-whitelist 10.0.0.0/16: o NLB faz SNAT para o IP do nó (dentro da VPC) e o limite sumiria para todos.
+    nginx.ingress.kubernetes.io/limit-rps: "50"
 spec:
   ingressClassName: nginx
   rules:

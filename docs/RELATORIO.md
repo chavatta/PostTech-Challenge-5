@@ -46,13 +46,15 @@ Definição formal (resumo de `docs/SRE.md`):
 
 - <print dashboard "SRE — donation-service SLOs & Error Budget" com os 4 stats>
 - <print Prometheus → Alerts com as regras `donation-service.slo-alerts`>
-- **MTTR demonstrado:** teste `06-sre-chaos.sh errors` → detecção pelo alerta em <X> s, serviço recuperado <Y> s após a mitigação.
+- **MTTR demonstrado:** teste `06-sre-chaos.sh errors` (tabela `donations` renomeada no RDS) → detecção pelo alerta
+  (MTTD) em <X> s, correção pelo runbook em <Y> s, **MTTR <X+Y> s** (linha "MTTR ... = detecção ... + correção ..." do script).
   <print do alerta disparando e resolvendo>
 - Como a stack reduz o MTTR: tabela em `docs/SRE.md` §6.
 
 ## 5. Seção FinOps
 
-- **Tagging:** `default_tags` no provider Terraform. <print `07-finops-report.sh tags`> <print tags de um recurso no console>
+- **Tagging:** `default_tags` no provider Terraform. <print `07-finops-report.sh tags`: recursos do Terraform sem
+  `Project` = nenhum; recursos criados em runtime pelo EKS/K8s listados à parte, com o dono> <print tags de um recurso no console>
 - **Rightsizing:** tabela de requests/limits e uso medido:
 
 | Serviço | CPU req/lim | Mem req/lim | Uso medido (kubectl top) |
@@ -70,7 +72,7 @@ Definição formal (resumo de `docs/SRE.md`):
 - **PCN** (`docs/PCN.md`): RPO doações **5 min** (PITR RDS), RTO **60 min** (regional), RTO namespace **30 min** (Velero).
 - **Estratégia:** Opção A Velero (backup horário → S3 versionado) **e** Opção B Terraform warm standby (`environments/dr.tfvars`).
 - <print `velero backup get` + objetos no S3>
-- <print do restore: namespace apagado e recuperado — RTO medido <Z> s>
+- <print do restore: ArgoCD pausado, namespace apagado e recuperado pelo Velero (label `velero.io/restore-name`) — RTO medido <Z> s>
 - <print `terraform plan` do workspace `dr`>
 - Segurança: gates DevSecOps, Pod Security `restricted`, NetworkPolicy, non-root/read-only FS, secrets via SSM (`docs/SEGURANCA.md`).
 

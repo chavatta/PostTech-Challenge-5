@@ -10,6 +10,11 @@
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT_DIR"
 
+step "Apontando para o site primário (workspace terraform + contexto kubectl)" \
+     "se '02-terraform-apply.sh dr' rodou antes, o kubectl ficou no cluster do DR; esta etapa é do primário"
+use_site primary
+ok "kubectl -> $(kubectl config current-context) ($REGION)"
+
 step "Secret newrelic-license (já criado na Etapa 4; reaplica se a licença mudou)" \
      "a licença é lida da variável de ambiente e vai direto para o cluster; nunca para o git"
 ensure_newrelic_secret

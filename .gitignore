@@ -9,3 +9,5 @@ __pycache__/
 .DS_Store
 kubeconfig*
 .tmp-ci/
+# plano salvo pelo scripts/02-terraform-apply.sh (pode conter valores sensíveis)
+*.tfplan
