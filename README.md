@@ -66,6 +66,7 @@ scripts/03-ci-check.sh                  # mesmos gates do pipeline, localmente
 scripts/aws-login-check.sh              # credenciais do Learner Lab
 scripts/02-terraform-apply.sh           # infra (~20 min)
 NEW_RELIC_LICENSE_KEY=... scripts/04-bootstrap-cluster.sh   # ArgoCD + app of apps; último kubectl apply do projeto (~10 min)
+scripts/05-newrelic-aiops.sh            # AIOps no New Relic como código (NEW_RELIC_API_KEY + NEW_RELIC_ACCOUNT_ID)
 scripts/05-observability.sh             # APM + tráfego para popular dashboards
 scripts/06-sre-chaos.sh errors          # quebra o banco → alerta burn-rate FIRING → runbook → MTTD e MTTR
 scripts/07-finops-report.sh tags        # evidências FinOps

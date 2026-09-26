@@ -383,6 +383,15 @@ scripts/05-observability.sh   # usa a mesma NEW_RELIC_LICENSE_KEY da Etapa 4
 Aponta para o site primário (`use_site primary`), confere o Secret (criado na Etapa 4), reinicia os serviços,
 força sync do `nri-bundle` e gera 2 min de tráfego.
 
+### 5.2b AIOps no New Relic (uma vez por conta)
+```bash
+export NEW_RELIC_API_KEY=NRAK-...   # User key, não a license
+export NEW_RELIC_ACCOUNT_ID=8116534
+scripts/05-newrelic-aiops.sh
+```
+Cria a policy `SolidaryTech SRE` (3 condições de anomalia baseline + 2 de SLO com signal loss), o workflow
+`sre-oncall` e os Service Levels do donation-service. Idempotente. Detalhes em `docs/AIOPS.md`.
+
 ### 5.3 Mostrar
 - Grafana (`port-forward` impresso pelo script) → dashboard "SRE — donation-service SLOs & Error Budget".
 - Explore → Loki → `{namespace="solidarytech"}`.
