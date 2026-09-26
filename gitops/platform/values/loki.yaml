@@ -7,5 +7,9 @@ loki:
 promtail:
   enabled: true
   resources: { requests: { cpu: 20m, memory: 64Mi }, limits: { cpu: 200m, memory: 128Mi } }
-grafana: { enabled: false }
+# O chart cria por padrão um ConfigMap de datasource "Loki" com isDefault: true; o sidecar do Grafana do
+# kube-prometheus-stack carrega esse ConfigMap junto com o Prometheus (também default) e o Grafana não sobe
+# ("Only one datasource per organization can be marked as default"). O datasource Loki já vem de
+# additionalDataSources em kube-prometheus-stack.yaml.
+grafana: { enabled: false, sidecar: { datasources: { enabled: false } } }
 prometheus: { enabled: false }

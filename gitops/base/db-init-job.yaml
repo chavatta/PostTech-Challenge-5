@@ -1,9 +1,15 @@
 # Hook PreSync do ArgoCD: antes de cada sync garante os bancos e schemas.
 # Idempotente (IF NOT EXISTS / ON CONFLICT), então pode rodar quantas vezes for preciso.
+# O ConfigMap também é hook PreSync (wave -1): recursos "normais" só são criados DEPOIS dos hooks PreSync,
+# então sem isso o Job ficava para sempre em ContainerCreating esperando um ConfigMap que ainda não existe.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: db-init-sql
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 data:
   ngo.sql: |
     CREATE TABLE IF NOT EXISTS ngos (
@@ -35,7 +41,7 @@ metadata:
   name: db-init
   annotations:
     argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded   # Job falho não bloqueia o próximo sync
 spec:
   backoffLimit: 3
   ttlSecondsAfterFinished: 600
