@@ -23,6 +23,10 @@ K8S = ("eks:", "aws:eks:", "kubernetes.io/", "ebs.csi.aws.com/", "cluster.k8s.am
 NOME = ("eks:cluster-name", "aws:eks:cluster-name", "cluster.k8s.amazonaws.com/name", "KubernetesCluster")
 linhas = []
 for r in json.load(sys.stdin)["ResourceTagMappingList"]:
+    # A Tagging API também lista os pods do EKS (arn:aws:eks:...:pod/...), com os labels do pod como "tags".
+    # São objetos do Kubernetes, não recursos cobrados da AWS: entrariam na lista "deveria ser zero" como falso positivo.
+    if ":pod/" in r["ResourceARN"]:
+        continue
     t = {x["Key"]: x["Value"] for x in r.get("Tags", [])}
     k8s = any(k.startswith(K8S) for k in t)
     if "Project" in t or k8s != (sys.argv[1] == "k8s"):  # cada modo só olha a sua metade
