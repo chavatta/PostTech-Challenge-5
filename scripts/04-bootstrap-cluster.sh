@@ -102,8 +102,17 @@ data:
   NEW_RELIC_LOG: stdout
   NEW_RELIC_LOG_LEVEL: info
 EOC
+# values do Velero: a Etapa 8 grava no git o bucket real + Schedules. Num ambiente novo (Learner Lab resetado, outra
+# conta) esse bucket não existe: o Velero subiria validando um bucket alheio e os Schedules gerariam um backup
+# FailedValidation por hora até a Etapa 8. Se o git não aponta para o bucket DESTE ambiente, volta ao placeholder.
+VELERO_BUCKET=$(terraform -chdir=terraform output -raw velero_bucket)
+if ! grep -q "bucket: $VELERO_BUCKET\$" gitops/platform/values/velero.yaml; then
+  cp gitops/platform/values/velero.placeholder.yaml gitops/platform/values/velero.yaml
+  echo "    velero.yaml apontava para outro ambiente: voltou ao placeholder (a Etapa 8 renderiza o bucket $VELERO_BUCKET)"
+fi
 # pull --rebase antes do push: o bot do CI commita na main depois de cada push (ver git_commit_push no lib.sh)
-git_commit_push "gitops: app-config renderizado do Terraform (site primary)" gitops/overlays/production/app-config.yaml
+git_commit_push "gitops: app-config renderizado do Terraform (site primary)" \
+  gitops/overlays/production/app-config.yaml gitops/platform/values/velero.yaml
 ok "app-config no git (origin/main)"
 
 step "Instalando ArgoCD ($ARGOCD_VERSION)" "ferramenta de GitOps: observa o repositório e converge o cluster para o que está no git"

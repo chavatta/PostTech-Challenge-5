@@ -332,6 +332,7 @@ scripts/04-bootstrap-cluster.sh      # ~10 min
 | Secret `newrelic-license` a partir do shell | o New Relic é instalado nesta etapa e precisa da licença antes | "Licença do shell para o cluster, nunca para o git." |
 | Confere o acesso às imagens do GHCR (pull anônimo ou `imagePullSecret`) | pacote privado sem credencial = `ImagePullBackOff`; melhor parar aqui, com a causa (ver 3.5) | |
 | Renderiza e **commita** `app-config.yaml` | configuração não sensível é GitOps. O push passa por `git_commit_push` (`lib.sh`): `pull --rebase` antes, porque o job `update-gitops` do CI commita a tag na main depois de cada push | |
+| Volta o `velero.yaml` ao placeholder se ele aponta para o bucket de outro ambiente | Learner Lab resetado ou outra conta: evita o Velero validar um bucket alheio e gerar backups FailedValidation até a Etapa 8 | |
 | Instala ArgoCD + credencial HTTPS do repo | qualquer contribuidor consegue subir o ambiente | "O ArgoCD usa o token de quem roda o script, só para ler o repositório." |
 | `kubectl apply` do AppProject e da root app | **último apply manual do projeto** | "Daqui pra frente é só git." |
 | Aguarda Applications Healthy; smoke test pelo NLB | prova ponta a ponta | |
