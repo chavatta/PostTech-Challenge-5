@@ -71,6 +71,9 @@ resource "aws_ssm_parameter" "db_url" {
   name     = "/${var.name}/${each.key}/database_url"
   type     = "SecureString"
   value    = "postgres://solidary:${random_password.db.result}@${aws_db_instance.postgres.address}:5432/${each.key}"
+  # O reset do Learner Lab não apaga o SSM Parameter Store: a URL da execução anterior sobra e o create falha com
+  # ParameterAlreadyExists. O valor é derivado (RDS + senha DESTE apply), então sobrescrever é o comportamento certo.
+  overwrite = true
 }
 
 # ---------- DynamoDB ----------
