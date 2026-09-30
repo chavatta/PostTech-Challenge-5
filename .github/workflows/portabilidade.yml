@@ -1,0 +1,33 @@
+# ------------------------------------------------------------------------------
+# Portabilidade dos scripts do roteiro (macOS / Linux / Windows Git Bash).
+# Custo: em repositório privado, minuto de macOS conta 10x e de Windows 2x na cota gratuita do Actions.
+# Por isso: push que muda scripts roda só no Ubuntu; a matriz completa roda sob demanda
+# (Actions -> portabilidade -> Run workflow), antes de uma gravação ou quando alguém mexer no lib.sh.
+# ------------------------------------------------------------------------------
+name: portabilidade
+
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/**", ".gitattributes", ".github/workflows/portabilidade.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portabilidade:
+    name: portabilidade (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults: { run: { shell: bash } }   # no windows-latest, bash = Git Bash (o mesmo que os alunos usam)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_wrapper: false }   # o wrapper do action altera stdout/exit code do terraform
+      - name: scripts/tests/portabilidade.sh
+        run: bash scripts/tests/portabilidade.sh
