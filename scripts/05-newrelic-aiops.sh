@@ -15,11 +15,20 @@
 source "$(dirname "$0")/lib.sh"
 [ -n "${NEW_RELIC_API_KEY:-}" ] || fail "exporte NEW_RELIC_API_KEY (User key NRAK-..., New Relic -> API keys)"
 [ -n "${NEW_RELIC_ACCOUNT_ID:-}" ] || fail "exporte NEW_RELIC_ACCOUNT_ID (número da conta, aparece em New Relic -> Administration)"
+# espaço/CR de copiar e colar (terminal do Windows) invalidam a key sem mensagem clara
+export NEW_RELIC_API_KEY="$(printf '%s' "$NEW_RELIC_API_KEY" | tr -d '[:space:]')"
+export NEW_RELIC_ACCOUNT_ID="$(printf '%s' "$NEW_RELIC_ACCOUNT_ID" | tr -d '[:space:]')"
+# as duas keys ficam na mesma tela do New Relic: a license (INGEST, termina em NRAL) só envia dados, não configura nada
+case "$NEW_RELIC_API_KEY" in
+  NRAK-*) ;;
+  *NRAL) fail "NEW_RELIC_API_KEY é a license key (INGEST, termina em NRAL). Aqui é a User key: API keys -> Create a key -> Key type: User (começa com NRAK-)" ;;
+  *) fail "NEW_RELIC_API_KEY não parece uma User key (deveria começar com NRAK-)" ;;
+esac
 
 step "Aplicando AIOps via NerdGraph (policy, anomalias, SLO, workflow, service levels)" \
      "configuração de alerta também é código: reproduzível no ambiente 2 e revisável no git, nada clicado"
 python3 - <<'PY'
-import json, os, sys, urllib.request
+import json, os, sys, urllib.error, urllib.request
 
 API = os.environ.get("NEW_RELIC_NERDGRAPH_URL", "https://api.newrelic.com/graphql")
 KEY = os.environ["NEW_RELIC_API_KEY"]
@@ -32,7 +41,14 @@ SIGNAL = {"aggregationWindow": 60, "aggregationMethod": "EVENT_FLOW", "aggregati
 def gql(query, **variables):
     req = urllib.request.Request(API, json.dumps({"query": query, "variables": variables}).encode(),
                                  {"Content-Type": "application/json", "API-Key": KEY})
-    body = json.load(urllib.request.urlopen(req, timeout=30))
+    try:
+        body = json.load(urllib.request.urlopen(req, timeout=30))
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            sys.exit(f"\033[1;31m    ✖ New Relic recusou a key (HTTP {e.code}). Causas comuns: key revogada; key de um usuário sem acesso "
+                     f"à conta {ACC} (User keys são pessoais: peça convite na conta ou use a key de quem é membro); conta na "
+                     f"região EU (export NEW_RELIC_NERDGRAPH_URL=https://api.eu.newrelic.com/graphql)\033[0m")
+        raise
     if body.get("errors"):
         sys.exit("NerdGraph: " + json.dumps(body["errors"], ensure_ascii=False))
     return body["data"]
