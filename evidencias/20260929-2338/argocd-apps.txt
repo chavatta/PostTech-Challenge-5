@@ -1,0 +1,10 @@
+NAME                    SYNC STATUS   HEALTH STATUS
+ingress-nginx           Synced        Healthy
+kube-prometheus-stack   Synced        Healthy
+loki                    Synced        Healthy
+metrics-server          Synced        Healthy
+newrelic                Synced        Healthy
+platform-config         Synced        Healthy
+root                    Synced        Healthy
+solidarytech            Synced        Healthy
+velero                  Synced        Healthy

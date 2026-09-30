@@ -1,0 +1,17 @@
+          resources:
+            limits:
+              cpu: 300m
+              memory: 96Mi
+            requests:
+--
+          resources:
+            limits:
+              cpu: 250m
+              memory: 192Mi
+            requests:
+--
+          resources:
+            limits:
+              cpu: 250m
+              memory: 192Mi
+            requests:

@@ -1,0 +1,135 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  annotations:
+    argocd.argoproj.io/tracking-id: platform-config:monitoring.coreos.com/PrometheusRule:monitoring/donation-service-slo
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"monitoring.coreos.com/v1","kind":"PrometheusRule","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"platform-config:monitoring.coreos.com/PrometheusRule:monitoring/donation-service-slo"},"labels":{"role":"slo"},"name":"donation-service-slo","namespace":"monitoring"},"spec":{"groups":[{"interval":"30s","name":"donation-service.sli","rules":[{"expr":"1 - (\n  (sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\", status=~\"5..\"}[5m])) or vector(0))\n  / clamp_min(sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\"}[5m])), 1e-9)\n)\n","record":"sli:donation_availability:ratio_rate5m"},{"expr":"1 - (\n  (sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\", status=~\"5..\"}[30m])) or vector(0))\n  / clamp_min(sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\"}[30m])), 1e-9)\n)\n","record":"sli:donation_availability:ratio_rate30m"},{"expr":"1 - (\n  (sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\", status=~\"5..\"}[1h])) or vector(0))\n  / clamp_min(sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\"}[1h])), 1e-9)\n)\n","record":"sli:donation_availability:ratio_rate1h"},{"expr":"1 - (\n  (sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\", status=~\"5..\"}[6h])) or vector(0))\n  / clamp_min(sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\"}[6h])), 1e-9)\n)\n","record":"sli:donation_availability:ratio_rate6h"},{"expr":"1 - (\n  (sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\", status=~\"5..\"}[30d])) or vector(0))\n  / clamp_min(sum(rate(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\"}[30d])), 1e-9)\n)\n","record":"sli:donation_availability:ratio_rate30d"},{"expr":"sum(rate(http_request_duration_seconds_bucket{namespace=\"solidarytech\", container=\"donation-service\", le=\"0.25\"}[5m]))\n/ clamp_min(sum(rate(http_request_duration_seconds_count{namespace=\"solidarytech\", container=\"donation-service\"}[5m])), 1e-9)\n","record":"sli:donation_latency_good:ratio_rate5m"},{"expr":"sum(rate(http_request_duration_seconds_bucket{namespace=\"solidarytech\", container=\"donation-service\", le=\"0.25\"}[1h]))\n/ clamp_min(sum(rate(http_request_duration_seconds_count{namespace=\"solidarytech\", container=\"donation-service\"}[1h])), 1e-9)\n","record":"sli:donation_latency_good:ratio_rate1h"},{"expr":"sum(rate(http_request_duration_seconds_bucket{namespace=\"solidarytech\", container=\"donation-service\", le=\"0.25\"}[6h]))\n/ clamp_min(sum(rate(http_request_duration_seconds_count{namespace=\"solidarytech\", container=\"donation-service\"}[6h])), 1e-9)\n","record":"sli:donation_latency_good:ratio_rate6h"},{"expr":"sum(rate(http_request_duration_seconds_bucket{namespace=\"solidarytech\", container=\"donation-service\", le=\"0.25\"}[30d]))\n/ clamp_min(sum(rate(http_request_duration_seconds_count{namespace=\"solidarytech\", container=\"donation-service\"}[30d])), 1e-9)\n","record":"sli:donation_latency_good:ratio_rate30d"},{"expr":"1 - ((1 - sli:donation_availability:ratio_rate30d) / (1 - 0.999))","record":"slo:donation_availability:error_budget_remaining"},{"expr":"1 - ((1 - sli:donation_latency_good:ratio_rate30d) / (1 - 0.99))","record":"slo:donation_latency:error_budget_remaining"}]},{"name":"donation-service.slo-alerts","rules":[{"alert":"DonationAvailabilityBurnRateCritical","annotations":{"runbook":"docs/ITSM.md#runbook-donation-5xx","summary":"donation-service queimando error budget 14x mais rápido que o permitido"},"expr":"(1 - sli:donation_availability:ratio_rate1h) \u003e (14.4 * 0.001)\nand (1 - sli:donation_availability:ratio_rate5m) \u003e (14.4 * 0.001)\n","for":"2m","labels":{"service":"donation-service","severity":"page","slo":"availability"}},{"alert":"DonationAvailabilityBurnRateHigh","annotations":{"runbook":"docs/ITSM.md#runbook-donation-5xx","summary":"donation-service com burn rate 6x (janela 6h)"},"expr":"(1 - sli:donation_availability:ratio_rate6h) \u003e (6 * 0.001)\nand (1 - sli:donation_availability:ratio_rate30m) \u003e (6 * 0.001)\n","for":"15m","labels":{"service":"donation-service","severity":"page","slo":"availability"}},{"alert":"DonationLatencyBurnRate","annotations":{"runbook":"docs/ITSM.md#runbook-donation-latencia","summary":"donation-service: menos de 94% das requisições abaixo de 250ms na última hora"},"expr":"(1 - sli:donation_latency_good:ratio_rate1h) \u003e (6 * 0.01)","for":"10m","labels":{"service":"donation-service","severity":"ticket","slo":"latency"}},{"alert":"DonationErrorBudgetExhausted","annotations":{"summary":"Error budget mensal do donation-service esgotado: congelar deploys de feature (política em docs/SRE.md)"},"expr":"slo:donation_availability:error_budget_remaining \u003c 0","for":"5m","labels":{"service":"donation-service","severity":"ticket","slo":"availability"}},{"alert":"DonationServiceDown","annotations":{"summary":"Nenhum pod do donation-service respondendo ao scrape"},"expr":"sum(up{namespace=\"solidarytech\", container=\"donation-service\"}) == 0 or absent(up{namespace=\"solidarytech\", container=\"donation-service\"})","for":"2m","labels":{"service":"donation-service","severity":"page"}},{"alert":"DonationSqsDlqMessages","annotations":{"summary":"donation-service retornou \u003e5 erros 500 em 10 min (verificar RDS/SQS)"},"expr":"increase(http_requests_total{namespace=\"solidarytech\", container=\"donation-service\", status=\"500\"}[10m]) \u003e 5","for":"0m","labels":{"service":"donation-service","severity":"ticket"}}]}]}}
+  creationTimestamp: "2026-09-30T00:15:08Z"
+  generation: 1
+  labels:
+    role: slo
+  name: donation-service-slo
+  namespace: monitoring
+  resourceVersion: "11677"
+  uid: fd0eecfb-9739-47f8-9414-f72f4c93ba15
+spec:
+  groups:
+  - interval: 30s
+    name: donation-service.sli
+    rules:
+    - expr: |
+        1 - (
+          (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[5m])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[5m])), 1e-9)
+        )
+      record: sli:donation_availability:ratio_rate5m
+    - expr: |
+        1 - (
+          (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[30m])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[30m])), 1e-9)
+        )
+      record: sli:donation_availability:ratio_rate30m
+    - expr: |
+        1 - (
+          (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[1h])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[1h])), 1e-9)
+        )
+      record: sli:donation_availability:ratio_rate1h
+    - expr: |
+        1 - (
+          (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[6h])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[6h])), 1e-9)
+        )
+      record: sli:donation_availability:ratio_rate6h
+    - expr: |
+        1 - (
+          (sum(rate(http_requests_total{namespace="solidarytech", container="donation-service", status=~"5.."}[30d])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total{namespace="solidarytech", container="donation-service"}[30d])), 1e-9)
+        )
+      record: sli:donation_availability:ratio_rate30d
+    - expr: |
+        sum(rate(http_request_duration_seconds_bucket{namespace="solidarytech", container="donation-service", le="0.25"}[5m]))
+        / clamp_min(sum(rate(http_request_duration_seconds_count{namespace="solidarytech", container="donation-service"}[5m])), 1e-9)
+      record: sli:donation_latency_good:ratio_rate5m
+    - expr: |
+        sum(rate(http_request_duration_seconds_bucket{namespace="solidarytech", container="donation-service", le="0.25"}[1h]))
+        / clamp_min(sum(rate(http_request_duration_seconds_count{namespace="solidarytech", container="donation-service"}[1h])), 1e-9)
+      record: sli:donation_latency_good:ratio_rate1h
+    - expr: |
+        sum(rate(http_request_duration_seconds_bucket{namespace="solidarytech", container="donation-service", le="0.25"}[6h]))
+        / clamp_min(sum(rate(http_request_duration_seconds_count{namespace="solidarytech", container="donation-service"}[6h])), 1e-9)
+      record: sli:donation_latency_good:ratio_rate6h
+    - expr: |
+        sum(rate(http_request_duration_seconds_bucket{namespace="solidarytech", container="donation-service", le="0.25"}[30d]))
+        / clamp_min(sum(rate(http_request_duration_seconds_count{namespace="solidarytech", container="donation-service"}[30d])), 1e-9)
+      record: sli:donation_latency_good:ratio_rate30d
+    - expr: 1 - ((1 - sli:donation_availability:ratio_rate30d) / (1 - 0.999))
+      record: slo:donation_availability:error_budget_remaining
+    - expr: 1 - ((1 - sli:donation_latency_good:ratio_rate30d) / (1 - 0.99))
+      record: slo:donation_latency:error_budget_remaining
+  - name: donation-service.slo-alerts
+    rules:
+    - alert: DonationAvailabilityBurnRateCritical
+      annotations:
+        runbook: docs/ITSM.md#runbook-donation-5xx
+        summary: donation-service queimando error budget 14x mais rápido que o permitido
+      expr: |
+        (1 - sli:donation_availability:ratio_rate1h) > (14.4 * 0.001)
+        and (1 - sli:donation_availability:ratio_rate5m) > (14.4 * 0.001)
+      for: 2m
+      labels:
+        service: donation-service
+        severity: page
+        slo: availability
+    - alert: DonationAvailabilityBurnRateHigh
+      annotations:
+        runbook: docs/ITSM.md#runbook-donation-5xx
+        summary: donation-service com burn rate 6x (janela 6h)
+      expr: |
+        (1 - sli:donation_availability:ratio_rate6h) > (6 * 0.001)
+        and (1 - sli:donation_availability:ratio_rate30m) > (6 * 0.001)
+      for: 15m
+      labels:
+        service: donation-service
+        severity: page
+        slo: availability
+    - alert: DonationLatencyBurnRate
+      annotations:
+        runbook: docs/ITSM.md#runbook-donation-latencia
+        summary: 'donation-service: menos de 94% das requisições abaixo de 250ms na
+          última hora'
+      expr: (1 - sli:donation_latency_good:ratio_rate1h) > (6 * 0.01)
+      for: 10m
+      labels:
+        service: donation-service
+        severity: ticket
+        slo: latency
+    - alert: DonationErrorBudgetExhausted
+      annotations:
+        summary: 'Error budget mensal do donation-service esgotado: congelar deploys
+          de feature (política em docs/SRE.md)'
+      expr: slo:donation_availability:error_budget_remaining < 0
+      for: 5m
+      labels:
+        service: donation-service
+        severity: ticket
+        slo: availability
+    - alert: DonationServiceDown
+      annotations:
+        summary: Nenhum pod do donation-service respondendo ao scrape
+      expr: sum(up{namespace="solidarytech", container="donation-service"}) == 0 or
+        absent(up{namespace="solidarytech", container="donation-service"})
+      for: 2m
+      labels:
+        service: donation-service
+        severity: page
+    - alert: DonationSqsDlqMessages
+      annotations:
+        summary: donation-service retornou >5 erros 500 em 10 min (verificar RDS/SQS)
+      expr: increase(http_requests_total{namespace="solidarytech", container="donation-service",
+        status="500"}[10m]) > 5
+      for: 0m
+      labels:
+        service: donation-service
+        severity: ticket

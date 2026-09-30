@@ -1,0 +1,2 @@
+NAME                  STATUS      ERRORS   WARNINGS   CREATED                         EXPIRES   STORAGE LOCATION   QUEUE POSITION   SELECTOR
+drill-20260929-2333   Completed   0        0          2026-09-29 23:33:59 -0300 -03   29d       default                             <none>

@@ -1,0 +1,5 @@
+POD                                  NAME                CPU(cores)   MEMORY(bytes)   
+donation-service-789d467764-dwdft    donation-service    1m           16Mi            
+donation-service-789d467764-jjj9n    donation-service    1m           16Mi            
+ngo-service-6d978c7d5d-875lm         ngo-service         8m           60Mi            
+volunteer-service-769677f467-5jkcz   volunteer-service   5m           73Mi            

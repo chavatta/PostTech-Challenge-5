@@ -1,0 +1,18 @@
+account_id = "251809678448"
+cluster_endpoint = "https://DEC82868A14045061520D809AD9A63E4.gr7.us-east-1.eks.amazonaws.com"
+cluster_name = "solidarytech-primary"
+db_url_ssm_parameters = {
+  "donation_db" = "/solidarytech-primary/donation_db/database_url"
+  "ngo_db" = "/solidarytech-primary/ngo_db/database_url"
+}
+dynamodb_table = "SolidaryTechVolunteers"
+ecr_repositories = {
+  "donation-service" = "251809678448.dkr.ecr.us-east-1.amazonaws.com/solidarytech-primary/donation-service"
+  "ngo-service" = "251809678448.dkr.ecr.us-east-1.amazonaws.com/solidarytech-primary/ngo-service"
+  "volunteer-service" = "251809678448.dkr.ecr.us-east-1.amazonaws.com/solidarytech-primary/volunteer-service"
+}
+kubeconfig_command = "aws eks update-kubeconfig --region us-east-1 --name solidarytech-primary"
+rds_endpoint = "solidarytech-primary-postgres.chiv0sfugm9p.us-east-1.rds.amazonaws.com"
+region = "us-east-1"
+sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/251809678448/solidarytech-primary-donations"
+velero_bucket = "solidarytech-primary-velero-251809678448"

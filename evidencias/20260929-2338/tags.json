@@ -1,0 +1,1118 @@
+[
+    [
+        "arn:aws:ecr:us-east-1:251809678448:repository/solidarytech-primary/ngo-service",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Service",
+                "Value": "ngo-service"
+            }
+        ]
+    ],
+    [
+        "arn:aws:eks:us-east-1:251809678448:addon/solidarytech-primary/aws-ebs-csi-driver/02d077c2-e898-7a8e-51b4-77349da3a6ff",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:rds:us-east-1:251809678448:snapshot:rds:solidarytech-primary-postgres-2026-09-29-23-37",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:s3:::solidarytech-primary-velero-251809678448",
+        [
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Script"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ssm:us-east-1:251809678448:parameter/solidarytech-primary/ngo_db/database_url",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ecr:us-east-1:251809678448:repository/solidarytech-primary/volunteer-service",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Service",
+                "Value": "volunteer-service"
+            }
+        ]
+    ],
+    [
+        "arn:aws:eks:us-east-1:251809678448:cluster/solidarytech-primary",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:logs:us-east-1:251809678448:log-group:/aws/eks/solidarytech-primary/cluster",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:elastic-ip/eipalloc-01c786e2bc0b3e129",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-nat-eip"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:internet-gateway/igw-046fd9ac9aa36f9ca",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-igw"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:launch-template/lt-0ef22ef538ca40672",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:elasticloadbalancing:us-east-1:251809678448:targetgroup/k8s-ingressn-ingressn-266702f25a/e15079d583d19977",
+        [
+            {
+                "Key": "kubernetes.io/service-name",
+                "Value": "ingress-nginx/ingress-nginx-controller"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "owned"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:dynamodb:us-east-1:251809678448:table/SolidaryTechVolunteers",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:route-table/rtb-037e3d63c8006c0ed",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-rt-public"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:vpc/vpc-014e99c9a758a1f1e",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-vpc"
+            }
+        ]
+    ],
+    [
+        "arn:aws:rds:us-east-1:251809678448:subgrp:solidarytech-primary-db",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:elasticloadbalancing:us-east-1:251809678448:listener/net/a7fadbee856a74d17b56509809e9ea6d/f65501deee8838b1/c527d95a8512c642",
+        [
+            {
+                "Key": "kubernetes.io/service-name",
+                "Value": "ingress-nginx/ingress-nginx-controller"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "owned"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ssm:us-east-1:251809678448:parameter/solidarytech-primary/donation_db/database_url",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:subnet/subnet-05ce2d402df8d5ce0",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Tier",
+                "Value": "private"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "shared"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "kubernetes.io/role/internal-elb",
+                "Value": "1"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-private-us-east-1a"
+            }
+        ]
+    ],
+    [
+        "arn:aws:eks:us-east-1:251809678448:addon/solidarytech-primary/coredns/9ad077c2-cad2-0a33-9071-93a54c0d497d",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:elasticloadbalancing:us-east-1:251809678448:loadbalancer/net/a7fadbee856a74d17b56509809e9ea6d/f65501deee8838b1",
+        [
+            {
+                "Key": "kubernetes.io/service-name",
+                "Value": "ingress-nginx/ingress-nginx-controller"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "owned"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:rds:us-east-1:251809678448:db:solidarytech-primary-postgres",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:subnet/subnet-08176e450ac2cccaa",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Tier",
+                "Value": "private"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "shared"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "kubernetes.io/role/internal-elb",
+                "Value": "1"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-private-us-east-1b"
+            }
+        ]
+    ],
+    [
+        "arn:aws:eks:us-east-1:251809678448:nodegroup/solidarytech-primary/solidarytech-primary-ng/30d077c1-f5fe-4d27-1c30-baa1edbde18f",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:sqs:us-east-1:251809678448:solidarytech-primary-donations",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:subnet/subnet-09b4a4c746b366d30",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Tier",
+                "Value": "public"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "shared"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "kubernetes.io/role/elb",
+                "Value": "1"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-public-us-east-1a"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ecr:us-east-1:251809678448:repository/solidarytech-primary/donation-service",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Service",
+                "Value": "donation-service"
+            }
+        ]
+    ],
+    [
+        "arn:aws:elasticloadbalancing:us-east-1:251809678448:targetgroup/k8s-ingressn-ingressn-bfe8bb061c/194d0e2ee97bd455",
+        [
+            {
+                "Key": "kubernetes.io/service-name",
+                "Value": "ingress-nginx/ingress-nginx-controller"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "owned"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:sqs:us-east-1:251809678448:solidarytech-primary-donations-dlq",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:eks:us-east-1:251809678448:addon/solidarytech-primary/vpc-cni/c4d077c1-c445-b631-5481-c269632984bd",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:route-table/rtb-0b68ec390dae48ecf",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-rt-private"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:security-group/sg-0f37a827697c6c54c",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:eks:us-east-1:251809678448:addon/solidarytech-primary/kube-proxy/32d077c1-c448-c33b-47d5-82aa3b3538f0",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:elasticloadbalancing:us-east-1:251809678448:listener/net/a7fadbee856a74d17b56509809e9ea6d/f65501deee8838b1/756709be8deb36ba",
+        [
+            {
+                "Key": "kubernetes.io/service-name",
+                "Value": "ingress-nginx/ingress-nginx-controller"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "owned"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:natgateway/nat-0edc30cd0f993aa64",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-nat"
+            }
+        ]
+    ],
+    [
+        "arn:aws:ec2:us-east-1:251809678448:subnet/subnet-0b2d5671d6f801919",
+        [
+            {
+                "Key": "Site",
+                "Value": "primary"
+            },
+            {
+                "Key": "Project",
+                "Value": "SolidaryTech"
+            },
+            {
+                "Key": "Owner",
+                "Value": "PosTech-Grupo"
+            },
+            {
+                "Key": "ManagedBy",
+                "Value": "Terraform"
+            },
+            {
+                "Key": "CostCenter",
+                "Value": "NGO-Core"
+            },
+            {
+                "Key": "Tier",
+                "Value": "public"
+            },
+            {
+                "Key": "kubernetes.io/cluster/solidarytech-primary",
+                "Value": "shared"
+            },
+            {
+                "Key": "Environment",
+                "Value": "Production"
+            },
+            {
+                "Key": "kubernetes.io/role/elb",
+                "Value": "1"
+            },
+            {
+                "Key": "Name",
+                "Value": "solidarytech-primary-public-us-east-1b"
+            }
+        ]
+    ]
+]

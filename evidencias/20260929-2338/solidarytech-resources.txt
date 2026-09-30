@@ -1,0 +1,45 @@
+NAME                                     READY   STATUS    RESTARTS   AGE     IP            NODE                          NOMINATED NODE   READINESS GATES
+pod/donation-service-789d467764-dwdft    1/1     Running   0          3m37s   10.0.10.46    ip-10-0-10-121.ec2.internal   <none>           <none>
+pod/donation-service-789d467764-jjj9n    1/1     Running   0          3m37s   10.0.11.131   ip-10-0-11-154.ec2.internal   <none>           <none>
+pod/ngo-service-6d978c7d5d-875lm         1/1     Running   0          3m37s   10.0.10.133   ip-10-0-10-121.ec2.internal   <none>           <none>
+pod/volunteer-service-769677f467-5jkcz   1/1     Running   0          3m37s   10.0.10.16    ip-10-0-10-121.ec2.internal   <none>           <none>
+
+NAME                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE     SELECTOR
+service/donation-service    ClusterIP   172.20.81.17    <none>        80/TCP    3m35s   app=donation-service
+service/ngo-service         ClusterIP   172.20.205.32   <none>        80/TCP    3m35s   app=ngo-service
+service/volunteer-service   ClusterIP   172.20.224.61   <none>        80/TCP    3m35s   app=volunteer-service
+
+NAME                                READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS          IMAGES                                                                                             SELECTOR
+deployment.apps/donation-service    2/2     2            2           3m36s   donation-service    ghcr.io/chavatta/posttech-challenge-5/donation-service:546d8975257e06c472a05dbbabbab18cf1638bb1    app=donation-service
+deployment.apps/ngo-service         1/1     1            1           3m36s   ngo-service         ghcr.io/chavatta/posttech-challenge-5/ngo-service:546d8975257e06c472a05dbbabbab18cf1638bb1         app=ngo-service
+deployment.apps/volunteer-service   1/1     1            1           3m36s   volunteer-service   ghcr.io/chavatta/posttech-challenge-5/volunteer-service:546d8975257e06c472a05dbbabbab18cf1638bb1   app=volunteer-service
+
+NAME                                           DESIRED   CURRENT   READY   AGE     CONTAINERS          IMAGES                                                                                             SELECTOR
+replicaset.apps/donation-service-565986b48d    0         0         0       3m38s   donation-service    ghcr.io/chavatta/posttech-challenge-5/donation-service:546d8975257e06c472a05dbbabbab18cf1638bb1    app=donation-service,pod-template-hash=565986b48d
+replicaset.apps/donation-service-57b5c5c668    0         0         0       3m38s   donation-service    ghcr.io/chavatta/posttech-challenge-5/donation-service:80e0e776fa750b7a211b0ab6d84725e19b817cff    app=donation-service,pod-template-hash=57b5c5c668
+replicaset.apps/donation-service-6b57bcdcdb    0         0         0       3m38s   donation-service    ghcr.io/chavatta/posttech-challenge-5/donation-service:1e11def1a7ee1e395c319f4761890113dd18b819    app=donation-service,pod-template-hash=6b57bcdcdb
+replicaset.apps/donation-service-789d467764    2         2         2       3m37s   donation-service    ghcr.io/chavatta/posttech-challenge-5/donation-service:546d8975257e06c472a05dbbabbab18cf1638bb1    app=donation-service,pod-template-hash=789d467764
+replicaset.apps/ngo-service-69d9d889c8         0         0         0       3m37s   ngo-service         ghcr.io/chavatta/posttech-challenge-5/ngo-service:80e0e776fa750b7a211b0ab6d84725e19b817cff         app=ngo-service,pod-template-hash=69d9d889c8
+replicaset.apps/ngo-service-6b4b69cbfd         0         0         0       3m37s   ngo-service         ghcr.io/chavatta/posttech-challenge-5/ngo-service:546d8975257e06c472a05dbbabbab18cf1638bb1         app=ngo-service,pod-template-hash=6b4b69cbfd
+replicaset.apps/ngo-service-6d978c7d5d         1         1         1       3m37s   ngo-service         ghcr.io/chavatta/posttech-challenge-5/ngo-service:546d8975257e06c472a05dbbabbab18cf1638bb1         app=ngo-service,pod-template-hash=6d978c7d5d
+replicaset.apps/ngo-service-8976dd55b          0         0         0       3m37s   ngo-service         ghcr.io/chavatta/posttech-challenge-5/ngo-service:1e11def1a7ee1e395c319f4761890113dd18b819         app=ngo-service,pod-template-hash=8976dd55b
+replicaset.apps/volunteer-service-6c9786bcf    0         0         0       3m37s   volunteer-service   ghcr.io/chavatta/posttech-challenge-5/volunteer-service:546d8975257e06c472a05dbbabbab18cf1638bb1   app=volunteer-service,pod-template-hash=6c9786bcf
+replicaset.apps/volunteer-service-6d696874f5   0         0         0       3m37s   volunteer-service   ghcr.io/chavatta/posttech-challenge-5/volunteer-service:80e0e776fa750b7a211b0ab6d84725e19b817cff   app=volunteer-service,pod-template-hash=6d696874f5
+replicaset.apps/volunteer-service-7597c4b977   0         0         0       3m37s   volunteer-service   ghcr.io/chavatta/posttech-challenge-5/volunteer-service:1e11def1a7ee1e395c319f4761890113dd18b819   app=volunteer-service,pod-template-hash=7597c4b977
+replicaset.apps/volunteer-service-769677f467   1         1         1       3m37s   volunteer-service   ghcr.io/chavatta/posttech-challenge-5/volunteer-service:546d8975257e06c472a05dbbabbab18cf1638bb1   app=volunteer-service,pod-template-hash=769677f467
+
+NAME                                                    REFERENCE                      TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/donation-service    Deployment/donation-service    cpu: 2%/70%    2         6         2          3m36s
+horizontalpodautoscaler.autoscaling/ngo-service         Deployment/ngo-service         cpu: 12%/70%   1         3         1          3m36s
+horizontalpodautoscaler.autoscaling/volunteer-service   Deployment/volunteer-service   cpu: 16%/70%   1         3         1          3m36s
+
+NAME                                           MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+poddisruptionbudget.policy/donation-service    1               N/A               1                     3m37s
+poddisruptionbudget.policy/ngo-service         1               N/A               0                     3m37s
+poddisruptionbudget.policy/volunteer-service   1               N/A               0                     3m37s
+
+NAME                                              POD-SELECTOR   AGE
+networkpolicy.networking.k8s.io/backend-default   tier=backend   3m37s
+
+NAME                                     CLASS   HOSTS   ADDRESS                                                                         PORTS   AGE
+ingress.networking.k8s.io/solidarytech   nginx   *       a7fadbee856a74d17b56509809e9ea6d-f65501deee8838b1.elb.us-east-1.amazonaws.com   80      3m37s

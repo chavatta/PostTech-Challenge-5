@@ -1,0 +1,5 @@
+completed	failure	dr: velero apontando para solidarytech-primary-velero-251809678448	ci	main	push	36660131367	4s	2026-09-30T02:30:09Z
+completed	failure	ci: portabilidade em workflow próprio; matriz macOS/Windows só sob de…	ci	main	push	36652563155	3s	2026-09-30T00:54:36Z
+completed	failure	portabilidade: curl -o /dev/null no Git Bash (achado pelo teste no wi…	ci	main	push	36652249321	1m58s	2026-09-30T00:50:31Z
+completed	failure	portabilidade: scripts funcionando em Windows (Git Bash) e Linux, com…	ci	main	push	36651902959	3m19s	2026-09-30T00:45:57Z
+completed	success	aiops: valida a User key e explica o 401 em vez de traceback	ci	main	push	36650199607	3m45s	2026-09-30T00:24:44Z
