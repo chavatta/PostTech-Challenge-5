@@ -76,8 +76,11 @@ N=$(printf '%s\n' "$IMAGES" | grep -c '^ghcr\.io/' || true)
 check "3 imagens lidas do overlay" test "$N" = 3
 check "imagens sem \\r" sem_cr "$IMAGES"
 for IMG in $IMAGES; do
-  check "pull anônimo: ${IMG##*/}" ghcr_anon_pull "$IMG"
+  RC=0; ghcr_anon_pull "$IMG" || RC=$?   # 1 = token negado (privado) | 2 = manifest (tag ou curl -o) falhou
+  check "pull anônimo: ${IMG##*/} (rc=$RC)" test "$RC" = 0
 done
+X=$(curl -s -o /dev/null -w '%{http_code}' https://ghcr.io/v2/)
+check "curl -o /dev/null -w http_code (smoke tests e caos): [$X]" test "$X" = 401
 X=$(awk '/repoURL:/{print $2; exit}' gitops/argocd/root-app.yaml)
 check "repoURL do root-app: [$X]" test "$X" = https://github.com/chavatta/PostTech-Challenge-5.git
 

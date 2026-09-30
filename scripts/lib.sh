@@ -51,6 +51,15 @@ python3() {
 if [ -n "$IS_WINDOWS" ] && type -P aws >/dev/null 2>&1; then
   aws() { command aws "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"; }
 fi
+# O curl do Git Bash (/mingw64/bin/curl.exe) é nativo: com a conversão desligada, "-o /dev/null" vira um arquivo
+# \dev\null inexistente e o curl falha (visto no CI windows-latest). NUL é o dispositivo nulo do Windows.
+if [ -n "$IS_WINDOWS" ] && [ "$(type -P curl)" != /usr/bin/curl ]; then
+  curl() {
+    local a=() x
+    for x in "$@"; do [ "$x" = /dev/null ] && x=NUL; a+=("$x"); done
+    command curl "${a[@]}"
+  }
+fi
 # Docker Compose v2 é obrigatório ("docker compose"). Docker Desktop, Colima, Rancher, OrbStack e Podman Desktop servem.
 compose() { docker compose "$@"; }
 
