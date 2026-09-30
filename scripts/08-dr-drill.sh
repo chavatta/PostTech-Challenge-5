@@ -29,7 +29,11 @@ case "$1" in
     B=$(kubectl -n velero get backups.velero.io -o json | python3 -c 'import sys,json
 b=[x for x in json.load(sys.stdin)["items"] if x.get("status",{}).get("phase")=="Completed"]
 print(max(b,key=lambda x:x["metadata"]["creationTimestamp"])["metadata"]["name"] if b else "")')
+    B=${B%$'\r'}
     [ -n "$B" ] || fail "nenhum backup Completed para restaurar: rode antes '$0 backup'"
+    # trava antes de qualquer ação destrutiva: o nome precisa existir no cluster e estar Completed
+    [ "$(kubectl -n velero get backups.velero.io "$B" -o jsonpath='{.status.phase}' 2>/dev/null)" = Completed ] \
+      || fail "backup '$B' não encontrado/Completed no cluster: nada foi apagado"
 
     step "Pausando o auto-sync do ArgoCD: app root E app solidarytech" \
          "a root tem selfHeal e gerencia a Application solidarytech: pausar só a filha é desfeito em segundos e o ArgoCD recriaria o namespace junto com o Velero"

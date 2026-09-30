@@ -67,6 +67,25 @@ jobs:
           # ids conhecidos e aceitos no lab (documentados em docs/SEGURANCA.md)
           trivyignores: .trivyignore
 
+  # ---------------------------------------------------------------- Portabilidade dos scripts do roteiro
+  # O grupo roda o roteiro em macOS, Linux e Windows (Git Bash). O mesmo teste nos três SOs pega o que só aparece
+  # fora do Mac: checkout CRLF, alias do python3 da Microsoft Store, \r na saída de aws.exe/python.exe,
+  # caminhos /c/... chegando crus a terraform.exe/git.exe e diferenças BSD x GNU.
+  portabilidade:
+    name: portabilidade (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { shell: bash } }   # no windows-latest, bash = Git Bash (o mesmo que os alunos usam)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_wrapper: false }   # o wrapper do action altera stdout/exit code do terraform
+      - name: scripts/tests/portabilidade.sh
+        run: bash scripts/tests/portabilidade.sh
+
   # ---------------------------------------------------------------- Segurança: SAST
   sast:
     name: SAST (semgrep)

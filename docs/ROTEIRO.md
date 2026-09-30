@@ -24,14 +24,37 @@ scripts/00-preflight.sh
 
 | | |
 |---|---|
-| O que faz | Confere docker, git, gh, aws, terraform, kubectl e o daemon do Docker. |
+| O que faz | Confere docker, git, gh, aws, terraform, kubectl, curl, Python 3, versões mínimas (AWS CLI v2, gh), fim de linha do checkout e o daemon do Docker. |
 | Por quê | Falha rápida. Descobrir que falta uma ferramenta no meio da gravação custa uma tomada inteira. |
 | Falar no vídeo | "Antes de tudo, validamos o ambiente. O projeto não depende de nada instalado à mão além dessas CLIs." |
 
 Os scripts são `bash` e funcionam em **macOS, Linux e Windows (Git Bash ou WSL)** com **qualquer runtime Docker**
 (Docker Desktop, Colima, Rancher Desktop, OrbStack, Podman Desktop) que tenha o Compose v2 (`docker compose`).
-No Windows, rode sempre pelo Git Bash: `scripts/lib.sh` desliga a conversão de caminhos do MSYS e converte os
-mounts com `cygpath`. O scan de imagens usa `docker save` + Trivy em tar, sem depender do `docker.sock`.
+O job `portabilidade` do CI roda `scripts/tests/portabilidade.sh` em Ubuntu, macOS e Windows (Git Bash) a cada push.
+O scan de imagens usa `docker save` + Trivy em tar, sem depender do `docker.sock`.
+
+Versões mínimas: **AWS CLI v2 ≥ 2.6.3**, **gh ≥ 2.17**, **Python 3.8+**. O preflight confere tudo isso.
+
+**Windows (Git Bash)**. Instale pelo `winget` (terminal do Windows), feche e abra o Git Bash depois:
+```
+winget install -e --id Git.Git
+winget install -e --id GitHub.cli
+winget install -e --id Amazon.AWSCLI
+winget install -e --id Hashicorp.Terraform
+winget install -e --id Kubernetes.kubectl
+winget install -e --id Python.Python.3.12
+```
+- Desligue os aliases `python.exe`/`python3.exe` em *Configurações > Aplicativos > Configurações avançadas >
+  Aliases de execução de aplicativo*: o `python3` da Microsoft Store não executa nada. O `lib.sh` procura
+  `python3`, `python` e `py -3` e usa o primeiro que roda de verdade.
+- O `lib.sh` desliga a conversão de caminhos do MSYS e passa caminhos no formato `C:/...` para os `.exe`
+  (`ROOT_HOST`); a saída do `aws.exe` e do `python.exe` tem o `\r` removido antes de ir para variáveis.
+- Fim de linha: o `.gitattributes` força LF. Num clone feito **antes** dele, rode uma vez:
+  `git rm -r --cached -q . && git reset --hard` (sem isso aparece `$'\r': command not found`).
+
+**Linux / WSL**. Use os instaladores oficiais: o `awscli` do `apt` do Ubuntu é a v1 (gera um kubeconfig que o
+`kubectl` recusa) e o `gh` do `apt` do Ubuntu 22.04 não tem `gh auth token`. No **WSL**, instale todas as CLIs
+**dentro** do Linux e clone o repositório no sistema de arquivos do Linux (`~/...`), não em `/mnt/c`.
 
 ### 1.2 O que mudou no código-base original
 

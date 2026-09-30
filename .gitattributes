@@ -1,0 +1,8 @@
+# LF sempre, em qualquer SO: o Git for Windows faz checkout com CRLF por padrão (core.autocrlf=true) e isso quebra
+# os scripts bash ($'\r': command not found), os scripts de init montados nos containers Linux e os YAML lidos com awk.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.tar binary
+*.gz binary

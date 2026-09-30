@@ -46,7 +46,7 @@ compose -f local/docker-compose.yml build -q
 # runtime (Docker Desktop, Colima, Rancher, Podman), sem depender do socket /var/run/docker.sock, que não existe no Windows.
 TMP="$ROOT_DIR/.tmp-ci"; mkdir -p "$TMP"; trap 'rm -rf "$TMP"' EXIT
 for s in ngo-service donation-service volunteer-service; do
-  docker save "solidarytech/$s:local" -o "$TMP/$s.tar"
+  docker save "solidarytech/$s:local" -o "$(hostpath "$TMP")/$s.tar"   # docker.exe não entende /c/... (conversão desligada)
   docker run --rm -v "$(hostpath "$TMP")":/scan aquasec/trivy:0.56.2 image \
     --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --input "/scan/$s.tar" || fail "$s tem CVEs bloqueantes"; ok "$s limpo"
   rm -f "$TMP/$s.tar"

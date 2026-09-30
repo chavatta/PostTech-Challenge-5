@@ -14,15 +14,43 @@ step() {  # $1 = o que | $2 = por quê
 }
 ok()   { printf '\033[1;32m    ✔ %s\033[0m\n' "$1"; }
 fail() { printf '\033[1;31m    ✖ %s\033[0m\n' "$1"; exit 1; }
-need() { command -v "$1" >/dev/null 2>&1 || fail "ferramenta '$1' não encontrada. $2"; }
+# type -P: só executável no PATH. `command -v` acharia as funções de mesmo nome definidas abaixo (python3, aws).
+need() { type -P "$1" >/dev/null 2>&1 || fail "ferramenta '$1' não encontrada. $2"; }
 
 # --- Portabilidade (macOS / Linux / Windows via Git Bash ou WSL, qualquer Docker) ---
 # No Git Bash (MSYS) o shell converte caminhos POSIX em argumentos ("/src" vira "C:\Program Files\Git\src").
-# MSYS_NO_PATHCONV=1 desliga isso, e hostpath() converte o lado do host para o formato que o Docker Desktop entende.
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) export MSYS_NO_PATHCONV=1; IS_WINDOWS=1 ;; *) IS_WINDOWS= ;; esac
-hostpath() {  # caminho absoluto do host pronto para "-v <host>:<container>"
+# MSYS_NO_PATHCONV=1 desliga isso (MSYS2_ARG_CONV_EXCL é o equivalente no shell do MSYS2 puro), e hostpath() converte
+# o lado do host para o formato que os .exe nativos entendem.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'; IS_WINDOWS=1 ;; *) IS_WINDOWS= ;; esac
+hostpath() {  # caminho absoluto do host pronto para "-v <host>:<container>" e para .exe nativos
   if [ -n "$IS_WINDOWS" ] && command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
 }
+# Com a conversão desligada, /c/Users/... chegaria cru a terraform.exe/git.exe/docker.exe ("cannot find the path").
+# ROOT_HOST = C:/Users/... no Git Bash e igual a ROOT_DIR no resto: use-o em todo caminho de host passado a um .exe.
+ROOT_HOST=$(hostpath "$ROOT_DIR")
+
+# Python 3 (lê o JSON das CLIs). No Windows 'python3' costuma ser o alias da Microsoft Store, que não executa nada:
+# o teste roda o interpretador de verdade. python3() sombreia o comando em todos os scripts, sem mudar as chamadas.
+PY=()
+for _c in python3 python "py -3"; do
+  if command $_c -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then read -ra PY <<<"$_c"; break; fi
+done; unset _c
+python3() {
+  if [ ${#PY[@]} -eq 0 ]; then   # na stderr: quase toda chamada está dentro de $(...), que engoliria a mensagem
+    printf '\033[1;31m    ✖ Python 3.8+ não encontrado. Windows: winget install -e --id Python.Python.3.12 e desligue os aliases python.exe/python3.exe em Configurações > Aplicativos > Configurações avançadas > Aliases de execução. Ubuntu/WSL: sudo apt install -y python3\033[0m\n' >&2
+    return 127
+  fi
+  if [ -n "$IS_WINDOWS" ]; then
+    # python.exe escreve \r\n (em $(...) o \r sobra no fim do valor) e usa cp1252 quando a saída é um pipe
+    PYTHONUTF8=1 PYTHONIOENCODING=utf-8 command "${PY[@]}" "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"
+  fi
+  command "${PY[@]}" "$@"
+}
+# AWS CLI v2 é Python congelado: no Windows também escreve \r\n (URL de fila, nome de bucket, account id com \r).
+# kubectl/terraform/gh/velero são Go e escrevem só LF: sem wrapper (o pipe quebraria port-forward &, run -i e prompts).
+if [ -n "$IS_WINDOWS" ] && type -P aws >/dev/null 2>&1; then
+  aws() { command aws "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"; }
+fi
 # Docker Compose v2 é obrigatório ("docker compose"). Docker Desktop, Colima, Rancher, OrbStack e Podman Desktop servem.
 compose() { docker compose "$@"; }
 
@@ -63,7 +91,7 @@ ensure_velero_bucket() {  # $1 = nome do bucket
 # Workspace inexistente aborta (fail). Cluster inexistente só retorna 1 com aviso: quem aceita isso (destroy) usa `use_site x || ...`;
 # nos demais scripts o set -e interrompe ali.
 use_site() {  # $1 = primary|dr
-  local site="${1:-}" tf="$ROOT_DIR/terraform" region cluster
+  local site="${1:-}" tf="$ROOT_HOST/terraform" region cluster
   case "$site" in primary|dr) ;; *) fail "use_site: site inválido '$site' (use primary ou dr)" ;; esac
   terraform -chdir="$tf" workspace select "$site" >/dev/null \
     || fail "workspace terraform '$site' não existe: rode scripts/02-terraform-apply.sh $site"
@@ -86,7 +114,7 @@ use_site() {  # $1 = primary|dr
 # roteiro é rejeitado (fetch first). Idempotente: sem mudança não commita, mas SEMPRE sincroniza e faz push, para entregar
 # também um commit que ficou só local numa execução anterior que falhou no push.
 git_commit_push() {  # $1 = mensagem | $2... = caminhos (relativos à raiz do repo)
-  local msg="$1" r="$ROOT_DIR" i out; shift
+  local msg="$1" r="$ROOT_HOST" i out; shift
   # o ArgoCD observa a main; commitar em outra branch e dar push na main não entregaria nada
   [ "$(git -C "$r" branch --show-current)" = main ] || fail "git_commit_push: faça checkout da main (o ArgoCD observa a main)"
   git -C "$r" add -- "$@"
@@ -117,4 +145,21 @@ ensure_newrelic_secret() {
     kubectl -n "$ns" create secret generic newrelic-license --from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY" \
       --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   done
+}
+
+# --- Imagens do GHCR ---
+# pull anônimo = o que o kubelet faz sem imagePullSecret: token anônimo + GET do manifest (index OCI ou Docker v2)
+ghcr_anon_pull() {  # $1 = ghcr.io/<dono>/<pacote>:<tag>; 0 = baixa sem credencial | 1 = pacote privado | 2 = tag não existe
+  local repo="${1#ghcr.io/}" tag tok
+  tag="${repo##*:}"; repo="${repo%:*}"
+  tok=$(curl -fs "https://ghcr.io/token?service=ghcr.io&scope=repository:$repo:pull" \
+        | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])' 2>/dev/null) || return 1
+  curl -fs -o /dev/null -H "Authorization: Bearer $tok" \
+    -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
+    "https://ghcr.io/v2/$repo/manifests/$tag" || return 2
+}
+overlay_images() {  # imagens ghcr.io do overlay de produção, como <imagem>:<tag> (o CI reescreve a tag a cada build)
+  tr -d '\r' < "$ROOT_DIR/gitops/overlays/production/kustomization.yaml" \
+    | awk '/^- name:/{if(img)print img":"tag; img=$3; tag="latest"} /^ *newName:/{img=$2} /^ *newTag:/{tag=$2}
+           END{if(img)print img":"tag}' | tr -d '"' | grep '^ghcr\.io/' || true
 }

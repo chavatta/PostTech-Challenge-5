@@ -44,19 +44,8 @@ ok "secret newrelic-license criado"
 
 step "Acesso às imagens do GHCR: pull anônimo ou imagePullSecret" \
      "pacote privado sem credencial deixa os pods em ImagePullBackOff; melhor parar aqui, com a causa, do que no timeout do ArgoCD"
-# pull anônimo = o que o kubelet faz sem imagePullSecret: token anônimo + GET do manifest (index OCI ou Docker v2)
-ghcr_anon_pull() {  # $1 = ghcr.io/<dono>/<pacote>:<tag>; 0 = baixa sem credencial | 1 = pacote privado | 2 = tag não existe
-  local repo="${1#ghcr.io/}" tag tok
-  tag="${repo##*:}"; repo="${repo%:*}"
-  tok=$(curl -fs "https://ghcr.io/token?service=ghcr.io&scope=repository:$repo:pull" \
-        | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])' 2>/dev/null) || return 1
-  curl -fs -o /dev/null -H "Authorization: Bearer $tok" \
-    -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
-    "https://ghcr.io/v2/$repo/manifests/$tag" || return 2
-}
 # imagens e tag vêm do overlay de produção (o CI reescreve a tag a cada build), não de valor fixo no script
-IMAGES=$(awk '/^- name:/{if(img)print img":"tag; img=$3; tag="latest"} /^ *newName:/{img=$2} /^ *newTag:/{tag=$2}
-              END{if(img)print img":"tag}' gitops/overlays/production/kustomization.yaml | tr -d '"' | grep '^ghcr\.io/' || true)
+IMAGES=$(overlay_images)
 PRIVATE=""
 for IMG in $IMAGES; do
   RC=0; ghcr_anon_pull "$IMG" || RC=$?
@@ -65,8 +54,8 @@ for IMG in $IMAGES; do
     2) fail "a tag de $IMG não existe no GHCR: o job build do CI publicou? (gh run list --workflow ci.yml)" ;;
   esac
 done
-# só a conta ativa: é o token dela que `gh auth token` devolve (write:packages inclui read:packages)
-GH_SCOPES=$(gh auth status --active 2>&1 || true)
+# escopos do token que o gh envia de fato (conta ativa); write:packages inclui read:packages
+GH_SCOPES=$(gh api -i user 2>/dev/null | grep -i '^x-oauth-scopes:' || true)   # --active só existe no gh >= 2.57
 if [ -z "$PRIVATE" ]; then
   ok "imagens públicas (pull anônimo OK): imagePullSecret desnecessário"
 elif grep -Eq "(read|write):packages" <<<"$GH_SCOPES"; then
@@ -106,7 +95,7 @@ EOC
 # conta) esse bucket não existe: o Velero subiria validando um bucket alheio e os Schedules gerariam um backup
 # FailedValidation por hora até a Etapa 8. Se o git não aponta para o bucket DESTE ambiente, volta ao placeholder.
 VELERO_BUCKET=$(terraform -chdir=terraform output -raw velero_bucket)
-if ! grep -q "bucket: $VELERO_BUCKET\$" gitops/platform/values/velero.yaml; then
+if ! tr -d '\r' < gitops/platform/values/velero.yaml | grep -q "bucket: $VELERO_BUCKET\$"; then   # tr: checkout CRLF não pode forçar o reset
   cp gitops/platform/values/velero.placeholder.yaml gitops/platform/values/velero.yaml
   echo "    velero.yaml apontava para outro ambiente: voltou ao placeholder (a Etapa 8 renderiza o bucket $VELERO_BUCKET)"
 fi
@@ -128,7 +117,11 @@ step "Acesso do ArgoCD ao repositório privado (HTTPS + token de quem roda o scr
 REPO_URL=$(awk '/repoURL:/{print $2; exit}' gitops/argocd/root-app.yaml)
 REPO=${REPO_URL#https://github.com/}; REPO=${REPO%.git}
 # ARGOCD_REPO_TOKEN opcional: permite usar um token dedicado (ex.: PAT só leitura) em vez do token do gh
-TOKEN="${ARGOCD_REPO_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+TOKEN="${ARGOCD_REPO_TOKEN:-}"
+if [ -z "$TOKEN" ]; then   # pelo exit code: o gh antigo (apt do Ubuntu 22.04 = 2.4.0) não tem 'auth token' e imprime o uso no stdout
+  TOKEN=$(gh auth token 2>/dev/null) || fail "'gh auth token' falhou: rode 'gh auth login' com gh >= 2.17 (o apt do Ubuntu 22.04 traz 2.4.0) ou exporte ARGOCD_REPO_TOKEN"
+fi
+TOKEN=${TOKEN%$'\r'}
 [ -n "$TOKEN" ] || fail "sem token do GitHub: rode 'gh auth login' (ou exporte ARGOCD_REPO_TOKEN)"
 GH_USER=$(GH_TOKEN="$TOKEN" gh api user --jq .login 2>/dev/null) || fail "token do GitHub inválido"
 GH_TOKEN="$TOKEN" gh api "repos/$REPO" --jq .full_name >/dev/null 2>&1 \
@@ -149,7 +142,7 @@ step "Aguardando sincronização (ingress, metrics-server, prometheus, loki, new
      "sync waves: infraestrutura primeiro, apps por último"
 EXPECTED=$(( $(ls gitops/argocd/apps/*.yaml | wc -l) + 1 ))   # root + um Application por arquivo
 for i in $(seq 1 60); do
-  read -r TOTAL HEALTHY < <(kubectl -n argocd get applications -o json | python3 -c '
+  IFS=$' \t\r' read -r TOTAL HEALTHY < <(kubectl -n argocd get applications -o json | python3 -c '
 import sys,json
 a=json.load(sys.stdin)["items"]
 ok=sum(1 for x in a if x.get("status",{}).get("health",{}).get("status")=="Healthy" and x.get("status",{}).get("sync",{}).get("status")=="Synced")
